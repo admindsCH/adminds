@@ -75,7 +75,7 @@ export default function LandingPage() {
             <p className="mt-6 text-base sm:text-lg text-zinc-500 max-w-2xl mx-auto leading-relaxed">
               Rapports AI, ordonnances, correspondance… vous passez
               trop de temps sur l&apos;administratif. Partagez votre expérience
-              et participez à la création d&apos;un outils pensé pour vous.
+              et participez à la création d&apos;un outil pensé pour vous.
             </p>
             <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-3">
               <a
@@ -160,11 +160,11 @@ export default function LandingPage() {
               className="text-3xl sm:text-4xl font-normal tracking-tight text-zinc-900"
               style={{ fontFamily: "var(--font-serif)" }}
             >
-              Construisons ensemble l'outils{" "}
+              Construisons ensemble l'outil{" "}
               <span className="text-zinc-400">qui vous manque.</span>
             </h2>
             <p className="mt-4 text-zinc-500 max-w-2xl mx-auto leading-relaxed">
-              Nous cherchons des psychiatres pour co-créer Adminds.
+              Nous sélectionnons 15 psychiatres en Suisse romande pour co-créer Adminds.
               Réservez un appel de 15-20 minutes pour partager votre
               expérience quotidienne de l&apos;administratif.
               Vos retours façonneront directement le produit.
