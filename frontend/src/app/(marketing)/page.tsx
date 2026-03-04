@@ -187,10 +187,10 @@ export default function LandingPage() {
               <h3 className="text-lg font-semibold text-zinc-900">Chiara</h3>
               <p className="text-sm font-medium text-indigo-600 mb-3">Product Manager</p>
               <p className="text-sm text-zinc-500 leading-relaxed">
-                Product Manager chez Docplanner, la plus grande plateforme
-                de santé en ligne en Europe. Elle a passé des années à concevoir
-                des outils numériques pour les professionnels de santé et comprend
-                intimement leurs contraintes au quotidien.
+                Product Manager dans une scale-up HealthTech européenne de premier plan.
+                Elle a passé des années à concevoir des outils numériques pour les
+                professionnels de santé et comprend intimement leurs contraintes
+                au quotidien.
               </p>
             </div>
             {/* Valentin */}
