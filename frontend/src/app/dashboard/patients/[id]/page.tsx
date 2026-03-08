@@ -33,6 +33,9 @@ import {
   FileDown,
   Loader2,
   Check,
+  Paperclip,
+  X,
+  ImageIcon,
 } from "lucide-react";
 import { AIVoiceInput } from "@/components/ui/ai-voice-input";
 
@@ -105,6 +108,9 @@ export default function PatientDetailPage() {
   const [isDragging, setIsDragging] = useState(false);
   // Notes tab state
   const [noteInputMode, setNoteInputMode] = useState<NoteInputMode>("text");
+  // Files attached to the current note (documents + photos)
+  const [noteAttachments, setNoteAttachments] = useState<File[]>([]);
+  const noteFileInputRef = useRef<HTMLInputElement>(null);
   // Search + date filter state for notes
   const [noteSearch, setNoteSearch] = useState("");
   const [noteDateFrom, setNoteDateFrom] = useState("");
@@ -602,7 +608,68 @@ export default function PatientDetailPage() {
                     placeholder="Ajoutez une note..."
                     className="w-full min-h-[120px] rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-sm text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent resize-y"
                   />
-                  <div className="mt-3 flex justify-end">
+
+                  {/* Attached files list */}
+                  {noteAttachments.length > 0 && (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {noteAttachments.map((file, i) => {
+                        // Show image icon for image files, document icon otherwise
+                        const isImage = file.type.startsWith("image/");
+                        return (
+                          <span
+                            key={`${file.name}-${i}`}
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-zinc-50 px-2.5 py-1.5 text-xs text-zinc-700"
+                          >
+                            {isImage ? (
+                              <ImageIcon className="size-3.5 text-indigo-500 shrink-0" />
+                            ) : (
+                              <FileText className="size-3.5 text-zinc-400 shrink-0" />
+                            )}
+                            <span className="max-w-[140px] truncate">
+                              {file.name}
+                            </span>
+                            {/* Remove button */}
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setNoteAttachments((prev) =>
+                                  prev.filter((_, idx) => idx !== i),
+                                )
+                              }
+                              className="ml-0.5 rounded p-0.5 text-zinc-400 hover:text-zinc-600 hover:bg-zinc-200 transition-colors"
+                            >
+                              <X className="size-3" />
+                            </button>
+                          </span>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Action bar: attach + save */}
+                  <div className="mt-3 flex items-center justify-between">
+                    {/* Hidden file input for attachments */}
+                    <input
+                      ref={noteFileInputRef}
+                      type="file"
+                      multiple
+                      accept=".pdf,.docx,.doc,.png,.jpg,.jpeg,.heic,.tiff"
+                      onChange={(e) => {
+                        const files = Array.from(e.target.files || []);
+                        setNoteAttachments((prev) => [...prev, ...files]);
+                        // Reset so the same file can be re-selected
+                        e.target.value = "";
+                      }}
+                      className="hidden"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => noteFileInputRef.current?.click()}
+                      className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm text-zinc-500 hover:text-zinc-700 hover:bg-zinc-100 transition-colors"
+                    >
+                      <Paperclip className="size-4" />
+                      Joindre un fichier
+                    </button>
                     <Button color="indigo">Enregistrer la note</Button>
                   </div>
                 </div>
