@@ -302,6 +302,79 @@ export const MOCK_FRIBOURG_FIELDS: ReportFieldSection[] = [
   },
 ];
 
+// Mock filled values matching the Geneva template structure
+// Geneva is simpler: 14 numbered questions, each a free-text answer box
+export const MOCK_GENEVE_FIELDS: ReportFieldSection[] = [
+  {
+    id: "anamnese",
+    title: "1. Anamnèse et status",
+    fields: [
+      { id: "q01_anamnese_status", label: "Anamnèse et status (constatations objectives)", value: "Mme Marie Dupont, née le 12.03.1985, est suivie depuis le 15.11.2025 pour un trouble dépressif récurrent (F33.1). Épisode actuel depuis novembre 2025 avec dégradation progressive depuis septembre 2025.\n\nStatus: Patiente orientée dans les trois sphères. Contact adéquat mais ralenti. Thymie abaissée, affect restreint, anhédonie marquée. Sommeil perturbé (réveils précoces 4h). Concentration significativement réduite. Pas d'idéation suicidaire active ni de symptômes psychotiques.", type: "multiline" },
+    ],
+  },
+  {
+    id: "diagnostics",
+    title: "2-3. Diagnostics",
+    fields: [
+      { id: "q02_diagnostics_avec_repercussion", label: "Diagnostic(s) avec répercussion durable sur la capacité de travail", value: "F33.1 — Trouble dépressif récurrent, épisode actuel moyen\nF51.0 — Insomnie non organique", type: "multiline" },
+      { id: "q03_diagnostics_sans_repercussion", label: "Diagnostic(s) sans répercussion durable sur la capacité de travail", value: "Néant", type: "text" },
+    ],
+  },
+  {
+    id: "traitement",
+    title: "4-5. Traitement et observance",
+    fields: [
+      { id: "q04_suivi_traitement", label: "Suivi médical, traitement et propositions thérapeutiques", value: "Première consultation: 15.11.2025. Suivi hebdomadaire.\nTraitement: Sertraline 100mg/jour.\nPsychothérapie TCC hebdomadaire (Mme Schneider, psychologue FSP).\nPropositions: évaluation ajustement médicamenteux si pas d'amélioration dans 2 mois.", type: "multiline" },
+      { id: "q05_observance", label: "Observance thérapeutique et compliance", value: "Bonne observance thérapeutique. Patiente compliant au traitement médicamenteux et psychothérapeutique. Pas de monitoring sanguin requis pour Sertraline.", type: "multiline" },
+    ],
+  },
+  {
+    id: "evolution",
+    title: "6. Évolution",
+    fields: [
+      { id: "q06_evolution", label: "Évolution de l'état de santé depuis la prise en charge", value: "Légère amélioration depuis le début de la prise en charge. Thymie reste abaissée mais stabilisée. Troubles du sommeil persistants malgré le traitement. Reprise partielle du travail à 50% depuis le 16.02.2026.", type: "multiline" },
+    ],
+  },
+  {
+    id: "pronostic",
+    title: "7. Pronostic",
+    fields: [
+      { id: "q07_pronostic", label: "Pronostic", value: "Réservé à moyen terme (6-12 mois). Dépend de la réponse au traitement antidépresseur et de la poursuite de la psychothérapie. Facteurs favorables: compliance, motivation, bon fonctionnement prémorbide. Facteurs défavorables: récurrence du trouble, persistance des troubles du sommeil.", type: "multiline" },
+    ],
+  },
+  {
+    id: "limitations",
+    title: "8-9. Limitations fonctionnelles et vie quotidienne",
+    fields: [
+      { id: "q08_limitations_fonctionnelles", label: "Limitations fonctionnelles", value: "Concentration réduite (< 20 min sur tâche cognitive), fatigabilité accrue nécessitant des pauses fréquentes, difficultés d'adaptation au changement, retrait social avec capacité préservée de contacts brefs, difficultés de planification et d'organisation.", type: "multiline" },
+      { id: "q09_repercussions_vie_quotidienne", label: "Répercussions dans la vie quotidienne et journée type", value: "Difficultés modérées pour le ménage et les courses (fatigabilité). Soins corporels préservés. Activités sociales réduites. Journée type: lever 7h, difficultés à initier les activités, fatigue dès la mi-journée, sieste fréquente, coucher 22h avec réveils précoces.", type: "multiline" },
+    ],
+  },
+  {
+    id: "ressources_readaptation",
+    title: "10-11. Ressources et réadaptation",
+    fields: [
+      { id: "q10_ressources", label: "Ressources disponibles ou mobilisables", value: "Soutien familial présent (conjoint). Bonne aptitude à la collaboration. Ancien réseau professionnel maintenu. Loisirs: lecture (limitée), promenades.", type: "multiline" },
+      { id: "q11_readaptation", label: "Aptitude à suivre une mesure de réadaptation professionnelle", value: "Envisageable à moyen terme (3-6 mois), sous réserve d'une amélioration de la concentration et de la fatigabilité. Mesure de type reprise progressive recommandée.", type: "multiline" },
+    ],
+  },
+  {
+    id: "capacite_travail",
+    title: "12-13. Capacité de travail",
+    fields: [
+      { id: "q12_capacite_activite_habituelle", label: "Capacité de travail dans l'activité habituelle", value: "Assistante administrative. Capacité actuelle: 50% depuis le 16.02.2026. Reprise à taux plus élevé envisageable dans 3-6 mois selon évolution.", type: "multiline" },
+      { id: "q13_capacite_activite_adaptee", label: "Capacité de travail dans une activité adaptée", value: "60-70% dans une activité sans exigence cognitive élevée, avec possibilité de pauses régulières et sans pression temporelle. Envisageable dès maintenant.", type: "multiline" },
+    ],
+  },
+  {
+    id: "remarques",
+    title: "14. Remarques",
+    fields: [
+      { id: "q14_remarques", label: "Remarques éventuelles", value: "Réévaluation recommandée dans 6 mois.", type: "text" },
+    ],
+  },
+];
+
 // The 3 rapport types available for each patient
 export const REPORT_TYPES: ReportType[] = [
   {

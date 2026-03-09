@@ -13,6 +13,7 @@ import {
   DOC_CATEGORY_COLORS,
   MOCK_EXTRACTED_SECTIONS,
   MOCK_FRIBOURG_FIELDS,
+  MOCK_GENEVE_FIELDS,
   type Canton,
   type DocCategory,
   type WizardDocument,
@@ -190,9 +191,10 @@ export default function RapportPage() {
         setTimeout(() => {
           setGenerating(false);
           setGenerated(true);
-          // Pre-fill editable fields from Fribourg template mock data
+          // Pre-fill editable fields from the active canton's template
+          const fields = canton === "geneve" ? MOCK_GENEVE_FIELDS : MOCK_FRIBOURG_FIELDS;
           const initial: Record<string, string> = {};
-          for (const section of MOCK_FRIBOURG_FIELDS) {
+          for (const section of fields) {
             for (const field of section.fields) {
               initial[field.id] = field.value;
             }
@@ -735,7 +737,7 @@ export default function RapportPage() {
                   {/* Scrollable sections list */}
                   <div className="flex-1 overflow-y-auto px-5 py-4">
                     <div className="flex flex-col gap-3">
-                      {MOCK_FRIBOURG_FIELDS.map((section) => {
+                      {(canton === "geneve" ? MOCK_GENEVE_FIELDS : MOCK_FRIBOURG_FIELDS).map((section) => {
                         const isCollapsed = collapsedSections.has(section.id);
                         return (
                           <div
