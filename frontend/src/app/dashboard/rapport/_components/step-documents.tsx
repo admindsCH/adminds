@@ -1,4 +1,5 @@
 import { Subheading } from "@/components/heading";
+import { Text } from "@/components/text";
 import type { WizardDocument } from "@/lib/mock-data";
 import { useFileUpload } from "../_hooks/use-file-upload";
 import { DocumentListItem } from "./document-list-item";
@@ -25,18 +26,32 @@ function UploadIcon({ className }: { className?: string }) {
   );
 }
 
+function MicrophoneIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M12 18.75a6 6 0 0 0 6-6v-1.5m-6 7.5a6 6 0 0 1-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 0 1-3-3V4.5a3 3 0 1 1 6 0v8.25a3 3 0 0 1-3 3Z"
+      />
+    </svg>
+  );
+}
+
 // ── Component ────────────────────────────────────────────
 
 interface StepDocumentsProps {
   docs: WizardDocument[];
   onDocsChange: React.Dispatch<React.SetStateAction<WizardDocument[]>>;
+  notes: string;
+  onNotesChange: React.Dispatch<React.SetStateAction<string>>;
 }
 
 /**
  * Step 1: drag-and-drop document upload with simulated classification.
  * The parent owns `docs` state because it needs it for `canNext` logic.
  */
-export function StepDocuments({ docs, onDocsChange }: StepDocumentsProps) {
+export function StepDocuments({ docs, onDocsChange, notes, onNotesChange }: StepDocumentsProps) {
   const { dragging, fileRef, addFiles, onDrop, onDragOver, onDragLeave } =
     useFileUpload(onDocsChange);
 
@@ -107,11 +122,39 @@ export function StepDocuments({ docs, onDocsChange }: StepDocumentsProps) {
           </Subheading>
           <ul className="mt-2 divide-y divide-zinc-100 rounded-lg border border-zinc-200">
             {docs.map((d) => (
-              <DocumentListItem key={d.id} doc={d} />
+              <DocumentListItem
+                key={d.id}
+                doc={d}
+                onDelete={(id) => onDocsChange((prev) => prev.filter((doc) => doc.id !== id))}
+              />
             ))}
           </ul>
         </div>
       )}
+
+      {/* Notes complémentaires + voice dictation */}
+      <div className="mt-8 rounded-lg border border-zinc-200 p-4">
+        <div className="flex items-center justify-between">
+          <Subheading>Notes complémentaires</Subheading>
+          <span className="group relative flex cursor-default items-center gap-1.5 rounded-full bg-zinc-100 px-3 py-1.5 text-xs font-medium text-zinc-400">
+            <MicrophoneIcon className="h-3.5 w-3.5" />
+            Dicter
+            <span className="pointer-events-none absolute -top-8 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-zinc-800 px-2 py-1 text-[11px] text-white opacity-0 transition-opacity group-hover:opacity-100">
+              Coming soon
+            </span>
+          </span>
+        </div>
+        <Text className="mt-1">
+          Ajoutez vos observations cliniques, éléments d&apos;anamnèse ou précisions pour le rapport.
+        </Text>
+        <textarea
+          value={notes}
+          onChange={(e) => onNotesChange(e.target.value)}
+          placeholder="Ex : patient présente une anhédonie marquée depuis 3 mois, sommeil perturbé..."
+          rows={5}
+          className="mt-3 block w-full rounded-lg border border-zinc-950/10 bg-transparent px-3 py-2 text-sm text-zinc-950 placeholder:text-zinc-500 focus:border-zinc-950/20 focus:outline-none sm:text-sm/6"
+        />
+      </div>
     </div>
   );
 }

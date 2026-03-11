@@ -41,22 +41,18 @@ async with get_pool().acquire() as conn:
 ## Environment Variables
 
 ### Backend (`backend/.env`)
+**Currently active:**
+- `API_URL` — Backend URL (default: `http://localhost:8000`)
+- `APP_URL` — Frontend URL (CORS + redirects, default: `http://localhost:3000`)
+- `OPENAI_API_KEY` — OpenAI API key (used by classification agent)
+- `OPENAI_MODEL` — Model name (default: `gpt-4o`)
+
+**Planned (not connected yet):**
 - `DATABASE_URL` — Azure PostgreSQL connection string
 - `AZURE_STORAGE_CONNECTION_STRING` — Blob Storage connection
 - `AZURE_STORAGE_CONTAINER` — Blob container name
-- `AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT` — Document Intelligence endpoint
-- `AZURE_DOCUMENT_INTELLIGENCE_KEY` — Document Intelligence API key
-- `AZURE_OPENAI_ENDPOINT` — Azure OpenAI endpoint (CH North)
-- `AZURE_OPENAI_API_KEY` — Azure OpenAI API key
-- `AZURE_OPENAI_DEPLOYMENT` — GPT-4o deployment name
 - `AZURE_SERVICEBUS_CONNECTION_STRING` — Service Bus connection
 - `AZURE_KEYVAULT_URL` — Key Vault URL
-- `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_ID`
-- `ENCRYPTION_KEY` — Fernet key for app-level encryption
-- `APP_URL` — Frontend URL (CORS + redirects)
-- `MOCK_STRIPE` — `true` for local dev
-- `RESEND_API_KEY`, `NOTIFICATION_EMAIL`
-- `DEV_USER_ID` — UUID to bypass auth in dev
 - `CLERK_SECRET_KEY` — Clerk backend JWT validation
 
 ### Frontend (`frontend/.env.local`)
@@ -70,17 +66,24 @@ async with get_pool().acquire() as conn:
 ```
 backend/
   app/
-    main.py          — FastAPI app, CORS, health, router registration
-    config.py        — All settings from env vars (Pydantic BaseSettings)
-    auth.py          — Clerk JWT validation
-    database.py      — asyncpg connection pool (singleton)
-    schemas.py       — All Pydantic request/response models
-    routers/         — One file per feature area
-    services/        — Business logic and external service adapters
-      blob.py        — Azure Blob Storage client
-      document_ai.py — Azure Document Intelligence client
-      openai.py      — Azure OpenAI client
-      queue.py       — Azure Service Bus producer
+    main.py              — FastAPI app, CORS, health, router registration
+    config.py            — Settings from env vars (app URLs + OpenAI)
+    schemas.py           — Shared Pydantic models
+    routers/
+      hello.py           — Test endpoint
+    services/            — DOCX fillers + field maps
+      docx_filler.py     — Fribourg template filler
+      docx_filler_geneve.py — Geneva template filler
+      fribourg_field_map.py — Fribourg field definitions (~106 fields)
+      geneve_field_map.py   — Geneva field definitions (~21 fields)
+    classification/      — Classification + dossier parsing (Steps 1-2)
+      schemas.py         — PatientDossier, DossierResponse, PatientDossierPatch, ClassifiedDocument
+      constants.py, helpers.py, services.py, routes.py, store.py
+    report/              — Report generation (Step 3)
+      schemas.py, constants.py, services.py, routes.py
+  templates/
+    fribourg.docx        — Official canton templates (also in frontend/public/templates/)
+    geneve.docx
 
 frontend/
   src/
@@ -88,9 +91,12 @@ frontend/
       (marketing)/   — Public pages (landing, pricing, privacy, terms)
       sign-in/       — Clerk sign-in (catch-all route)
       sign-up/       — Clerk sign-up (catch-all route)
-      dashboard/     — Authenticated app (TODO)
+      dashboard/     — Authenticated app
+        rapport/     — 3-step wizard (Documents → Résumé → Rapport)
     components/      — Catalyst UI components (reusable)
     lib/
-      api.ts         — Typed API client with auth headers
+      api.ts         — Typed API client (classifyDocuments, parseDossier, getDossier, updateDossier, generateReport)
+      schemas/
+        classification.ts — PatientDossier, DossierResponse, PatientDossierPatch types
     proxy.ts         — Clerk middleware (route protection)
 ```

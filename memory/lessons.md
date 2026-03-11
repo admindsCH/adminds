@@ -38,3 +38,11 @@ Rules learned from user corrections. Review at session start.
 - Always check privacy/compliance implications before recommending third-party services
 - Clerk stores auth data (email/name) on US servers — acceptable for doctor info but not patient data
 - All patient data must stay in Azure Switzerland
+
+## Backend Patterns
+- **Routes must be extremely thin** — just `return await services.function_name(args)`. No validation, no logic in routes. Import as `from app.feature import services` to keep it readable.
+- **Feature modules**: each feature gets its own folder (`app/classification/`, etc.) with routes.py, services.py, schemas.py, constants.py
+- **Use LangChain agent framework** for AI features — `create_agent()` with `response_format` for structured output, `system_prompt` for domain expertise
+- **API prefix is `/api/`** — no versioning
+- **Don't use ChatPromptTemplate** when `create_agent` accepts `system_prompt` directly — keep it simple
+- **Each agent gets its own memory doc** in `memory/agents/{name}.md`

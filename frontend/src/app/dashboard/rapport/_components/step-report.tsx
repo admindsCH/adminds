@@ -1,39 +1,16 @@
 "use client";
 
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { Subheading } from "@/components/heading";
 import { Text } from "@/components/text";
 import { Button } from "@/components/button";
-import {
-  CANTONS,
-  MOCK_FRIBOURG_FIELDS,
-  MOCK_GENEVE_FIELDS,
-  type Canton,
-  type ReportFieldSection,
-} from "@/lib/mock-data";
+import { CANTONS, type Canton } from "@/lib/mock-data";
+import { api } from "@/lib/api";
+import type { FieldSchemaEntry } from "@/lib/schemas/report";
 import { renderAsync } from "docx-preview";
 import clsx from "clsx";
 
-// ── Constants ────────────────────────────────────────────
-
-/** Simulated generation steps with labels and durations (ms). */
-const GEN_STEPS = [
-  { label: "Extraction des données du dossier patient", duration: 2200 },
-  { label: "Analyse des antécédents médicaux", duration: 1800 },
-  { label: "Intégration des notes du médecin", duration: 1400 },
-  { label: "Rédaction du rapport AI", duration: 2500 },
-  { label: "Mise en forme du document", duration: 1000 },
-];
-
 // ── Icons ────────────────────────────────────────────────
-
-function CheckIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
-    </svg>
-  );
-}
 
 function PencilIcon({ className }: { className?: string }) {
   return (
@@ -59,6 +36,66 @@ function ChevronIcon({ className }: { className?: string }) {
   );
 }
 
+// ── Progress checklist (reused from step-summary pattern) ──
+
+const REPORT_STEPS = [
+  "Préparation du contexte patient",
+  "Rédaction du document",
+  "Création du document",
+  "Rendu de l'aperçu",
+];
+
+function SpinnerIcon() {
+  return (
+    <div className="h-4 w-4 animate-spin rounded-full border-2 border-indigo-600 border-t-transparent" />
+  );
+}
+
+function CheckIcon() {
+  return (
+    <svg className="h-4 w-4 text-emerald-500" viewBox="0 0 20 20" fill="currentColor">
+      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clipRule="evenodd" />
+    </svg>
+  );
+}
+
+function ReportProgressChecklist({ currentStep }: { currentStep: number }) {
+  return (
+    <div className="mt-6 flex flex-col items-center justify-center rounded-lg border border-zinc-200 bg-zinc-50 px-5 py-8">
+      <ul className="space-y-3">
+        {REPORT_STEPS.map((label, i) => {
+          const done = i < currentStep;
+          const active = i === currentStep;
+          return (
+            <li key={i} className="flex items-center gap-3">
+              {done ? (
+                <CheckIcon />
+              ) : active ? (
+                <SpinnerIcon />
+              ) : (
+                <span className="flex h-4 w-4 items-center justify-center">
+                  <span className="h-2 w-2 rounded-full bg-zinc-300" />
+                </span>
+              )}
+              <span
+                className={
+                  done
+                    ? "text-sm text-zinc-500"
+                    : active
+                      ? "text-sm font-medium text-zinc-900"
+                      : "text-sm text-zinc-400"
+                }
+              >
+                {label}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
 // ── Shared input class ───────────────────────────────────
 
 const INPUT_CLASS =
@@ -80,52 +117,65 @@ function buildFilename(ext: string): string {
   return `Rapport AI - ${patient} - ${type} - ${date}.${ext}`;
 }
 
-// ── Sub-components ───────────────────────────────────────
+// ── Types for editor sections (built from backend field_schema) ──
 
-/** Progress list shown during generation. */
-function GenerationProgress({ currentStep }: { currentStep: number }) {
-  return (
-    <div className="mt-6 rounded-lg border border-zinc-200 bg-zinc-50 px-5 py-4">
-      <ul className="flex flex-col gap-3">
-        {GEN_STEPS.map((s, i) => {
-          const done = currentStep > i;
-          const active = currentStep === i;
-          return (
-            <li key={i} className="flex items-center gap-3">
-              {/* Icon: checkmark / spinner / dot */}
-              {done ? (
-                <span className="flex h-5 w-5 items-center justify-center rounded-full bg-indigo-600">
-                  <CheckIcon className="h-3 w-3 text-white" />
-                </span>
-              ) : active ? (
-                <span className="flex h-5 w-5 items-center justify-center">
-                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-indigo-600 border-t-transparent" />
-                </span>
-              ) : (
-                <span className="flex h-5 w-5 items-center justify-center">
-                  <span className="h-2 w-2 rounded-full bg-zinc-300" />
-                </span>
-              )}
-              <span
-                className={clsx(
-                  "text-sm transition-colors",
-                  done && "text-zinc-900",
-                  active && "font-medium text-indigo-700",
-                  !done && !active && "text-zinc-400"
-                )}
-              >
-                {s.label}
-              </span>
-            </li>
-          );
-        })}
-      </ul>
-    </div>
-  );
+interface EditorField {
+  id: string;
+  label: string;
+  type: "text" | "multiline" | "date";
 }
 
+interface EditorSection {
+  id: string;
+  title: string;
+  fields: EditorField[];
+}
+
+/** Build editor sections by grouping schema entries by `section`.
+ *  Uses field value length to decide text vs multiline rendering. */
+function buildEditorSections(
+  schema: FieldSchemaEntry[],
+  values: Record<string, string | boolean>,
+): EditorSection[] {
+  const sectionMap = new Map<string, EditorField[]>();
+
+  for (const entry of schema) {
+    // Skip checkbox/choice fields — not editable as text (they map to "X" marks)
+    if (entry.type === "checkbox") continue;
+
+    if (!sectionMap.has(entry.section)) sectionMap.set(entry.section, []);
+    const val = values[entry.id];
+    // Render as multiline if value is long or contains newlines
+    const isLong =
+      typeof val === "string" && (val.length > 80 || val.includes("\n"));
+    sectionMap.get(entry.section)!.push({
+      id: entry.id,
+      label: entry.label,
+      type: entry.type === "date" ? "date" : isLong ? "multiline" : "text",
+    });
+  }
+
+  return Array.from(sectionMap.entries()).map(([title, fields], i) => ({
+    id: `section_${i}`,
+    title,
+    fields,
+  }));
+}
+
+/** Convert a base64 string to a Blob (for docx-preview rendering). */
+function base64ToBlob(base64: string): Blob {
+  const binaryStr = atob(base64);
+  const bytes = new Uint8Array(binaryStr.length);
+  for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
+  return new Blob([bytes], {
+    type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  });
+}
+
+// ── Sub-components ───────────────────────────────────────
+
 /** Collapsible section in the slide-over editor. */
-function EditorSection({
+function EditorSectionPanel({
   section,
   editedValues,
   onFieldChange,
@@ -133,7 +183,7 @@ function EditorSection({
   onToggle,
   onUpdate,
 }: {
-  section: ReportFieldSection;
+  section: EditorSection;
   editedValues: Record<string, string>;
   onFieldChange: (fieldId: string, value: string) => void;
   isCollapsed: boolean;
@@ -170,7 +220,7 @@ function EditorSection({
                 </label>
                 {field.type === "multiline" ? (
                   <textarea
-                    value={editedValues[field.id] ?? field.value}
+                    value={editedValues[field.id] ?? ""}
                     onChange={(e) => onFieldChange(field.id, e.target.value)}
                     rows={4}
                     className={INPUT_CLASS + " py-2"}
@@ -178,7 +228,7 @@ function EditorSection({
                 ) : (
                   <input
                     type="text"
-                    value={editedValues[field.id] ?? field.value}
+                    value={editedValues[field.id] ?? ""}
                     onChange={(e) => onFieldChange(field.id, e.target.value)}
                     className={INPUT_CLASS}
                   />
@@ -201,43 +251,52 @@ function EditorSection({
 
 interface StepReportProps {
   canton: Canton;
+  dossierId: string | null;
 }
 
 /**
- * Step 4: report generation, in-browser docx preview, and slide-over editor.
- * All state (generation progress, editor values, docx blob) is local.
+ * Report generation step: calls backend to fill the .docx template,
+ * renders in-browser preview, and provides a slide-over editor.
  */
-export function StepReport({ canton }: StepReportProps) {
-  // Generation state
-  const [generating, setGenerating] = useState(false);
+export function StepReport({ canton, dossierId }: StepReportProps) {
+  // Generation state: null = idle, 0..3 = current step index
+  const [genStep, setGenStep] = useState<number | null>(null);
   const [generated, setGenerated] = useState(false);
-  const [genStep, setGenStep] = useState(-1);
+  const [genError, setGenError] = useState<string | null>(null);
 
   // Docx preview
   const previewRef = useRef<HTMLDivElement>(null);
   const docxBlobRef = useRef<Blob | null>(null);
   const [docxLoading, setDocxLoading] = useState(false);
 
+  // Real field data from the backend (replaces mock fields)
+  const [fieldSchema, setFieldSchema] = useState<FieldSchemaEntry[]>([]);
+  const [fieldValues, setFieldValues] = useState<Record<string, string | boolean>>({});
+
   // Editor slide-over
-  const [editedSections, setEditedSections] = useState<Record<string, string>>({});
+  const [editedValues, setEditedValues] = useState<Record<string, string>>({});
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
   const [showEditor, setShowEditor] = useState(false);
+  const [updating, setUpdating] = useState(false);
 
-  // Which template fields to use based on canton
-  const templateFields: ReportFieldSection[] =
-    canton === "geneve" ? MOCK_GENEVE_FIELDS : MOCK_FRIBOURG_FIELDS;
+  // Build editor sections from backend schema + values (grouped by section name)
+  const editorSections = useMemo(
+    () => buildEditorSections(fieldSchema, fieldValues),
+    [fieldSchema, fieldValues],
+  );
 
-  // ── Docx preview loading ───────────────────────────────
+  // ── Docx preview loading (empty template shown before generation) ──
 
   useEffect(() => {
+    // After generation, the blob is already set — skip fetching the empty template.
+    if (generated) return;
     if (!previewRef.current) return;
     let cancelled = false;
 
     async function loadDocx() {
       setDocxLoading(true);
       try {
-        const suffix = generated ? "-filled" : "";
-        const res = await fetch(`/templates/${canton}${suffix}.docx`);
+        const res = await fetch(`/templates/${canton}.docx`);
         if (!res.ok || cancelled) return;
         const blob = await res.blob();
         if (cancelled || !previewRef.current) return;
@@ -253,42 +312,64 @@ export function StepReport({ canton }: StepReportProps) {
     }
 
     loadDocx();
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [canton, generated]);
 
-  // ── Generation ─────────────────────────────────────────
+  // ── Render a blob into the docx preview container ─────
 
-  const generate = useCallback(() => {
-    setGenerating(true);
-    setGenStep(0);
+  const renderPreview = useCallback(async (blob: Blob) => {
+    docxBlobRef.current = blob;
+    if (previewRef.current) {
+      previewRef.current.innerHTML = "";
+      await renderAsync(blob, previewRef.current, undefined, {
+        ignoreWidth: true,
+        ignoreHeight: true,
+      });
+    }
+  }, []);
 
-    let currentStep = 0;
-    const advance = () => {
-      currentStep += 1;
-      if (currentStep < GEN_STEPS.length) {
-        setGenStep(currentStep);
-        setTimeout(advance, GEN_STEPS[currentStep].duration);
-      } else {
-        setGenStep(GEN_STEPS.length);
-        setTimeout(() => {
-          setGenerating(false);
-          setGenerated(true);
-          // Pre-fill editable fields from the canton template
-          const initial: Record<string, string> = {};
-          for (const section of templateFields) {
-            for (const field of section.fields) {
-              initial[field.id] = field.value;
-            }
-          }
-          setEditedSections(initial);
-          setShowEditor(true);
-        }, 500);
+  // ── Generation — calls the real backend endpoint ──────
+
+  const generate = useCallback(async () => {
+    if (!dossierId) return;
+
+    setGenError(null);
+
+    try {
+      // Step 0: Préparation du contexte patient
+      setGenStep(0);
+
+      // Step 1: Rédaction par l'IA (the long API call)
+      setGenStep(1);
+      const result = await api.generateReport(dossierId, canton);
+
+      // Step 2: Création du document — convert base64 to Blob
+      setGenStep(2);
+      const blob = base64ToBlob(result.docx_base64);
+
+      // Store real field data from the backend
+      setFieldSchema(result.field_schema);
+      setFieldValues(result.field_values);
+
+      // Pre-fill editor with string values from the LLM output
+      const initial: Record<string, string> = {};
+      for (const [key, val] of Object.entries(result.field_values)) {
+        initial[key] = String(val);
       }
-    };
-    setTimeout(advance, GEN_STEPS[0].duration);
-  }, [templateFields]);
+      setEditedValues(initial);
+
+      // Step 3: Rendu de l'aperçu
+      setGenStep(3);
+      await renderPreview(blob);
+
+      setGenerated(true);
+      setShowEditor(true);
+    } catch (e) {
+      setGenError(e instanceof Error ? e.message : "Erreur lors de la génération");
+    } finally {
+      setGenStep(null);
+    }
+  }, [dossierId, canton, renderPreview]);
 
   // ── Downloads ──────────────────────────────────────────
 
@@ -335,13 +416,25 @@ export function StepReport({ canton }: StepReportProps) {
   }, []);
 
   const updateField = useCallback((fieldId: string, value: string) => {
-    setEditedSections((prev) => ({ ...prev, [fieldId]: value }));
+    setEditedValues((prev) => ({ ...prev, [fieldId]: value }));
   }, []);
 
-  const simulateUpdate = useCallback(() => {
+  /** Re-fill the docx template with user-edited values and refresh preview. */
+  const handleUpdate = useCallback(async () => {
+    if (!dossierId) return;
+    setUpdating(true);
     setDocxLoading(true);
-    setTimeout(() => setDocxLoading(false), 800);
-  }, []);
+    try {
+      const result = await api.updateReport(dossierId, canton, editedValues);
+      const blob = base64ToBlob(result.docx_base64);
+      await renderPreview(blob);
+    } catch (e) {
+      setGenError(e instanceof Error ? e.message : "Erreur lors de la mise à jour");
+    } finally {
+      setUpdating(false);
+      setDocxLoading(false);
+    }
+  }, [dossierId, canton, editedValues, renderPreview]);
 
   // ── Render ─────────────────────────────────────────────
 
@@ -357,8 +450,8 @@ export function StepReport({ canton }: StepReportProps) {
         </div>
         <div className="flex gap-2">
           {!generated && (
-            <Button color="indigo" onClick={generate} disabled={generating}>
-              {generating ? "Génération..." : "Générer"}
+            <Button color="indigo" onClick={generate} disabled={genStep !== null || !dossierId}>
+              {genStep !== null ? "Génération..." : "Générer"}
             </Button>
           )}
           {generated && (
@@ -374,8 +467,16 @@ export function StepReport({ canton }: StepReportProps) {
         </div>
       </div>
 
-      {/* Generation progress */}
-      {generating && <GenerationProgress currentStep={genStep} />}
+      {/* Generation progress checklist */}
+      {genStep !== null && <ReportProgressChecklist currentStep={genStep} />}
+
+      {/* Generation error */}
+      {genError && (
+        <div className="mt-6 rounded-lg border border-red-200 bg-red-50 px-6 py-4 text-center">
+          <Text className="font-medium text-red-700">Erreur lors de la génération</Text>
+          <Text className="mt-1 text-sm text-red-600">{genError}</Text>
+        </div>
+      )}
 
       {/* Docx preview */}
       <div className="mt-6 overflow-hidden rounded-lg border border-zinc-200 bg-white">
@@ -433,15 +534,15 @@ export function StepReport({ canton }: StepReportProps) {
             {/* Scrollable sections list */}
             <div className="flex-1 overflow-y-auto px-5 py-4">
               <div className="flex flex-col gap-3">
-                {templateFields.map((section) => (
-                  <EditorSection
+                {editorSections.map((section) => (
+                  <EditorSectionPanel
                     key={section.id}
                     section={section}
-                    editedValues={editedSections}
+                    editedValues={editedValues}
                     onFieldChange={updateField}
                     isCollapsed={collapsedSections.has(section.id)}
                     onToggle={() => toggleSection(section.id)}
-                    onUpdate={simulateUpdate}
+                    onUpdate={handleUpdate}
                   />
                 ))}
               </div>

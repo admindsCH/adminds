@@ -1,20 +1,15 @@
 "use client";
 
 import { useState, useCallback, useRef } from "react";
-import type { DocCategory, WizardDocument } from "@/lib/mock-data";
-
-// All doc categories for random assignment during mock classification
-const CATEGORIES: DocCategory[] = [
-  "dpi-smeex",
-  "antecedents",
-  "rapports-medicaux",
-  "imagerie",
-  "autre",
-];
+import type { WizardDocument } from "@/lib/mock-data";
+import { api } from "@/lib/api";
 
 /**
- * Shared hook for file upload, drag-and-drop, and mock classification.
+ * Shared hook for file upload, drag-and-drop, and classification.
  * Used by both step 1 (main docs) and step 3 (extra docs).
+ *
+ * When files are added, they immediately appear as "classifying" in the UI.
+ * The hook sends them to POST /api/classify and updates state with the result.
  *
  * @param setDocs - state setter for the document list this hook manages
  */
@@ -26,33 +21,36 @@ export function useFileUpload(
   // Hidden <input type="file"> ref — triggered by click on the drop zone
   const fileRef = useRef<HTMLInputElement>(null);
 
-  // Simulate AI classification: classifying → extracting → done
-  const classify = useCallback(
-    (doc: WizardDocument) => {
-      setTimeout(() => {
-        // Move to "extracting" after 1s
+  // Send files to backend for classification, then update state with results
+  const classifyBatch = useCallback(
+    async (files: File[], docIds: string[]) => {
+      try {
+        // POST /api/classify — sends all files as multipart/form-data
+        const results = await api.classifyDocuments(files);
+
+        // Map results back to docs by index (backend returns same order as uploaded)
+        setDocs((prev) =>
+          prev.map((d) => {
+            const idx = docIds.indexOf(d.id);
+            if (idx === -1 || !results[idx]) return d;
+            const result = results[idx];
+            return {
+              ...d,
+              status: "done" as const,
+              category: result.classification.category,
+              classification: result.classification,
+              summary: result.classification.summary,
+            };
+          })
+        );
+      } catch {
+        // On any error, mark all docs in this batch as failed
         setDocs((prev) =>
           prev.map((d) =>
-            d.id === doc.id ? { ...d, status: "extracting" } : d
+            docIds.includes(d.id) ? { ...d, status: "error" as const } : d
           )
         );
-        setTimeout(() => {
-          // Move to "done" after another 1s, assign random category + fields
-          setDocs((prev) =>
-            prev.map((d) =>
-              d.id === doc.id
-                ? {
-                    ...d,
-                    status: "done" as const,
-                    category:
-                      CATEGORIES[Math.floor(Math.random() * CATEGORIES.length)],
-                    extractedFields: Math.floor(Math.random() * 8) + 3,
-                  }
-                : d
-            )
-          );
-        }, 1000);
-      }, 1000);
+      }
     },
     [setDocs]
   );
@@ -60,18 +58,28 @@ export function useFileUpload(
   // Convert a FileList into WizardDocuments and start classification
   const addFiles = useCallback(
     (files: FileList) => {
-      const newDocs: WizardDocument[] = Array.from(files).map((f) => ({
+      const fileArray = Array.from(files);
+
+      // Create placeholder docs with "classifying" status
+      const newDocs: WizardDocument[] = fileArray.map((f) => ({
         id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        file: f,
         fileName: f.name,
         fileSize: f.size,
-        category: "autre" as DocCategory,
+        category: "autre" as const,
         status: "classifying" as const,
-        extractedFields: 0,
+        classification: null,
+        summary: "",
       }));
+
+      // Add to state immediately so user sees the files
       setDocs((prev) => [...prev, ...newDocs]);
-      newDocs.forEach((d) => classify(d));
+
+      // Send to backend for classification
+      const docIds = newDocs.map((d) => d.id);
+      classifyBatch(fileArray, docIds);
     },
-    [setDocs, classify]
+    [setDocs, classifyBatch]
   );
 
   // Drop handler — call on the drop zone's onDrop

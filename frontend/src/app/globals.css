@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* Force dark mode to class-based — since we never add .dark to <html>, dark: variants are disabled */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme {
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   --font-sans--font-feature-settings: "cv11";
@@ -20,9 +23,10 @@
   --color-indigo-950: #1b1130;
 }
 
-/* Smooth scrolling */
+/* Smooth scrolling + force light mode (prevents dark: variants from activating) */
 html {
   scroll-behavior: smooth;
+  color-scheme: light;
 }
 
 /* Selection color */

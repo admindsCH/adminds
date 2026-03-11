@@ -120,7 +120,12 @@ export function StepSupplements() {
         {extraDocs.length > 0 && (
           <ul className="mt-3 divide-y divide-zinc-100 rounded-lg border border-zinc-200">
             {extraDocs.map((d) => (
-              <DocumentListItem key={d.id} doc={d} showDetails={false} />
+              <DocumentListItem
+                key={d.id}
+                doc={d}
+                showDetails={false}
+                onDelete={(id) => setExtraDocs((prev) => prev.filter((doc) => doc.id !== id))}
+              />
             ))}
           </ul>
         )}

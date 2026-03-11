@@ -63,49 +63,52 @@ api/waitlist/      — Waitlist API route
 
 ### Deleted Pages
 - `patients/page.tsx`, `patients/[id]/page.tsx`, `modeles/page.tsx` — removed in favor of wizard flow
+- `step-supplements.tsx` — removed (notes/dictation moved to step-summary.tsx)
 
 ## Report Wizard (`/dashboard/rapport`)
-4-step wizard — modularized into page + components + hooks:
+**3-step wizard** — Documents → Résumé → Rapport:
 
 ### File structure
 ```
 rapport/
-  page.tsx                              — Thin orchestrator (~90 lines): step/canton/docs state, navigation
+  page.tsx                              — Orchestrator: step/canton/docs/dossierId/dossier state, navigation
   _components/
-    wizard-stepper.tsx                  — Top bar: logo + canton selector + step pills
-    step-documents.tsx                  — Step 1: drag-and-drop upload + file list
-    step-summary.tsx                    — Step 2: editable extracted fields with confidence badges
-    step-supplements.tsx                — Step 3: notes (primary) + extra doc upload (secondary)
-    step-report.tsx                     — Step 4: generation progress, docx preview, slide-over editor
-    document-list-item.tsx              — Shared doc row component (used in steps 1 & 3)
+    wizard-stepper.tsx                  — Top bar: logo + canton selector + 3 step pills
+    step-documents.tsx                  — Step 1: drag-and-drop upload + real classification via /api/classify
+    step-summary.tsx                    — Step 2: editable PatientDossier fields (auto-save on blur via PATCH) + notes/dictation
+    step-report.tsx                     — Step 3: real report generation, docx preview, slide-over editor, download
+    document-list-item.tsx              — Shared doc row component
   _hooks/
-    use-file-upload.ts                  — classify, addFiles, onDrop, dragging (shared by steps 1 & 3)
+    use-file-upload.ts                  — classify, addFiles, onDrop, dragging
     use-voice-dictation.ts              — Web Speech API (fr-CH), toggle listening
 ```
 
 ### Steps
-1. **Documents** — Drag-and-drop upload, simulated classification (random category), status dots (classifying → extracting → done)
-2. **Summary** — Editable inline fields (input for short, textarea for long), "modifié" indicator, confidence badges (Fiable/Moyen/Faible), source attribution
-3. **Supplements** — Notes textarea with voice dictation (first), extra document upload (second)
-4. **Report** — 5-step simulated generation progress, in-browser .docx preview via `docx-preview`, slide-over editor with collapsible sections, download as PDF or DOCX
+1. **Documents** — Drag-and-drop upload, real classification via `POST /api/classify`, status dots (classifying → extracting → done)
+2. **Résumé** — Inline-editable PatientDossier fields (click pencil → edit → blur saves via `PATCH /api/dossiers/{id}`). Notes textarea + voice dictation at bottom. Auto-triggers `POST /api/parse-dossier` on first load.
+3. **Rapport** — Calls `POST /api/generate-report` (GPT-4o fills canton-specific fields → docx filler → .docx blob). In-browser preview via `docx-preview`. Slide-over editor with collapsible sections. Download as PDF or DOCX.
 
 ### Key design decisions
 - Canton selector lives in top bar (always visible, changeable from any step)
-- `docs` state lifted to page.tsx for `canNext` logic; all other step state is component-local
-- `useFileUpload` hook takes a `setDocs` setter — reused by steps 1 and 3 with separate state
-- `DocumentListItem` shared component with `showDetails` prop (step 1 shows size+status, step 3 shows filename only)
-- Shared input class constants (`INPUT_CLASS`) avoid duplicated Tailwind strings
-- Currently uses **mock data** — no backend integration yet
-- Templates stored in `public/templates/` (fribourg.docx, geneve.docx + filled versions)
+- `dossierId` and `dossier` state lifted to page.tsx — shared across steps 2 and 3
+- PatientDossier persisted server-side (in-memory store) — survives step navigation
+- Auto-save on blur pattern: click to edit → blur/Enter calls `api.updateDossier()` → parent state updated
+- Notes stored as `notes` field on PatientDossier (backend), not frontend-only
+- Templates stored in `public/templates/` and `backend/templates/` (both cantons)
 - `docx-preview` npm package renders .docx in-browser
 - Filenames: `Rapport AI - {patient} - {stade} - {date}.{ext}` (date in fr-CH format)
+
+### Frontend types (`src/lib/schemas/classification.ts`)
+- `PatientDossier` — patient_info, timeline, medications, diagnostics, rapport_ai_fields, notes
+- `DossierResponse` — { dossier_id, dossier }
+- `PatientDossierPatch` — partial update model (all fields optional)
+- `ClassifiedDocument` — from classification endpoint
 
 ## Mock Data (`src/lib/mock-data.ts`)
 - `Canton` type: `"geneve" | "fribourg"`
 - `WizardDocument`: document lifecycle states (classifying → extracting → done/error)
-- `DocCategory`: 5 types (dpi-smeex, antecedents, rapports-medicaux, imagerie, autre)
-- `ExtractedSection` / `ExtractedField`: structured data with confidence levels
-- `MOCK_EXTRACTED_SECTIONS`: 7 sections, 30+ fields simulating AI extraction output
+- `MOCK_FRIBOURG_FIELDS` / `MOCK_GENEVE_FIELDS`: canton-specific report editor fields (still used in slide-over)
+- `ReportFieldSection` / `ReportField`: field section types for slide-over editor
 
 ## New Dependencies
 - `docx-preview@0.3.7` — in-browser .docx rendering

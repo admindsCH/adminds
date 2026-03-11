@@ -28,5 +28,8 @@ backend/.venv/
 dist/
 build/
 
+# Patient data (dossiers, generated reports)
+backend/data/
+
 # uv
 backend/uv.lock

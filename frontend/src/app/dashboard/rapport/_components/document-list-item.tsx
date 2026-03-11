@@ -1,9 +1,6 @@
 import { Badge } from "@/components/badge";
-import {
-  DOC_CATEGORY_LABELS,
-  DOC_CATEGORY_COLORS,
-  type WizardDocument,
-} from "@/lib/mock-data";
+import { CATEGORY_LABELS, CATEGORY_COLORS } from "@/lib/schemas/classification";
+import type { WizardDocument } from "@/lib/mock-data";
 
 // ── Helpers ──────────────────────────────────────────────
 
@@ -17,8 +14,8 @@ export function formatBytes(b: number): string {
 /** Status text shown below the filename while processing. */
 function statusText(doc: WizardDocument): string {
   if (doc.status === "classifying") return " — Classification...";
-  if (doc.status === "extracting") return " — Extraction...";
-  if (doc.status === "done") return ` — ${doc.extractedFields} champs extraits`;
+  if (doc.status === "done" && doc.summary) return ` — ${doc.summary}`;
+  if (doc.status === "error") return " — Erreur de classification";
   return "";
 }
 
@@ -26,7 +23,6 @@ function statusText(doc: WizardDocument): string {
 
 const STATUS_DOT: Record<WizardDocument["status"], string> = {
   classifying: "bg-indigo-500 animate-pulse",
-  extracting: "bg-amber-500 animate-pulse",
   done: "bg-green-500",
   error: "bg-red-500",
 };
@@ -37,15 +33,18 @@ interface DocumentListItemProps {
   doc: WizardDocument;
   /** Show file size + status text (step 1 = true, step 3 = false). */
   showDetails?: boolean;
+  /** Called when the user clicks the delete button. If omitted, no delete button is shown. */
+  onDelete?: (id: string) => void;
 }
 
 /**
  * A single document row used in upload lists.
- * Renders a status dot, filename, optional size/status, and category badge.
+ * Renders a status dot, filename, optional size/status, category badge, and optional delete button.
  */
 export function DocumentListItem({
   doc,
   showDetails = true,
+  onDelete,
 }: DocumentListItemProps) {
   return (
     <li className="flex items-center gap-3 px-4 py-3">
@@ -58,7 +57,7 @@ export function DocumentListItem({
           {doc.fileName}
         </p>
         {showDetails && (
-          <p className="text-xs text-zinc-500">
+          <p className="truncate text-xs text-zinc-500">
             {formatBytes(doc.fileSize)}
             {statusText(doc)}
           </p>
@@ -67,9 +66,23 @@ export function DocumentListItem({
 
       {/* Category badge (only when classification is done) */}
       {doc.status === "done" && (
-        <Badge color={DOC_CATEGORY_COLORS[doc.category] as "indigo" | "amber" | "blue" | "purple" | "zinc"}>
-          {DOC_CATEGORY_LABELS[doc.category]}
+        <Badge color={CATEGORY_COLORS[doc.category]}>
+          {CATEGORY_LABELS[doc.category]}
         </Badge>
+      )}
+
+      {/* Delete button */}
+      {onDelete && (
+        <button
+          type="button"
+          onClick={() => onDelete(doc.id)}
+          className="rounded p-1 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-600"
+          aria-label={`Supprimer ${doc.fileName}`}
+        >
+          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+          </svg>
+        </button>
       )}
     </li>
   );

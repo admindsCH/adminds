@@ -2,8 +2,10 @@
 
 ## Stack
 - FastAPI with Pydantic models, async handlers
-- asyncpg for PostgreSQL (connection pool, raw SQL)
-- Alembic for database migrations
+- LangChain agent framework (`create_agent`) for AI features
+- OpenAI GPT-4o via `langchain-openai` (abstracted for Azure swap)
+- asyncpg for PostgreSQL (connection pool, raw SQL) — not connected yet
+- Alembic for database migrations — not set up yet
 - uv for Python package management
 
 ## Code Conventions
@@ -15,159 +17,83 @@
 - Return `{"detail": "Human-readable message"}` with HTTP status codes
 - `logging.getLogger("app")` — never log secrets
 - All settings via `app/config.py` (Pydantic BaseSettings from env vars)
-- Database: asyncpg pool from `app/database.py` — never create new connections outside pool
-- New routers in `app/routers/`, register in `app/main.py`
-- New schemas in `app/schemas.py`
+- **API prefix**: `/api/` (no versioning)
+- **Feature modules**: each feature gets its own folder with routes.py, services.py, schemas.py, constants.py
+- Routes are **thin** — just call `services.function_name()` and return
+- Register routers in `app/main.py`
 
 ## Current Files
 ```
 app/
   main.py          — FastAPI app, CORS, health, router registration
-  config.py        — Settings from env vars
-  auth.py          — JWT validation (needs rewrite for Clerk)
-  database.py      — Database client (needs rewrite for asyncpg)
-  schemas.py       — Pydantic models
+  config.py        — Settings from env vars (app URLs + OpenAI)
+  schemas.py       — Shared Pydantic models (HealthResponse, ErrorResponse)
   routers/
-    hello.py       — Health/test endpoint
-    users.py       — User profile endpoints
-    checkout.py    — Stripe checkout
-    waitlist.py    — Waitlist signup
-    webhooks.py    — Stripe webhooks
+    hello.py       — Test endpoint
   services/
-    email.py       — Resend email client
-    encryption.py  — Fernet encryption helper
     docx_filler.py         — Fribourg .docx template filler (python-docx + lxml)
     docx_filler_geneve.py  — Geneva .docx template filler
     fribourg_field_map.py  — 100+ field definitions for Fribourg template (767 lines)
     geneve_field_map.py    — 18 field definitions for Geneva template (249 lines)
+  classification/          — Classification + dossier parsing (Steps 1-2)
+    schemas.py     — PatientDossier, PatientDossierPatch, DossierResponse, ClassifiedDocument
+    constants.py   — Prompt, FORM_FIELD_MAP, ALLOWED_EXTENSIONS
+    helpers.py     — file_to_content_blocks() (PDF/image→base64, DOCX→text)
+    services.py    — classify_documents(), parse_and_store_dossier(), get/patch_dossier()
+    routes.py      — POST /api/classify, POST /api/parse-dossier, GET/PATCH /api/dossiers/{id}
+    store.py       — In-memory dossier store (dict[str, PatientDossier]), deep merge for PATCH
+  report/                  — Report generation (Step 3)
+    schemas.py     — GenerateReportRequest
+    constants.py   — REPORT_SYSTEM_PROMPT (field schema + canton name placeholders)
+    services.py    — generate_report(): fetch dossier → GPT-4o JSON mode → fill docx → StreamingResponse
+    routes.py      — POST /api/generate-report
+templates/
+  fribourg.docx    — Official Fribourg AI report template
+  geneve.docx      — Official Geneva AI report template
 ```
+
+## Agent Architecture
+LangChain-based system. Each wizard step has a specialized AI pipeline:
+```
+Step 1: Classification Agent  ✅ — create_agent + structured output (Pydantic)
+Step 2: Parse-dossier Agent   ✅ — create_agent + structured output (PatientDossier)
+Step 3: Report Generator      ✅ — ChatOpenAI JSON mode + docx filler
+```
+
+- **Steps 1-2** use `create_agent()` with `response_format` (Pydantic structured output)
+- **Step 3** uses raw `ChatOpenAI` with `response_format={"type": "json_object"}` because Fribourg has ~106 fields — too many for a Pydantic model
+- All use `_get_model()` factory for easy OpenAI → Azure swap
+- Agent detail docs: `memory/agents/{agent_name}.md`
 
 ## DOCX Template Filling Services
 
 ### Architecture
 - Input: `dict[str, Any]` with field IDs as keys → Output: filled `.docx` as `bytes`
 - Uses `python-docx` + `lxml` for low-level Word XML manipulation
-- Helper functions: `_set_form_field_text()`, `_check_checkbox()`, `_fill_select_one()`, `_add_text_to_cell()`, `_replace_cell_label()`
 
 ### Fribourg Template (`docx_filler.py`, 258 lines)
 - Complex form: 55 fldChar-based form fields + table cells across 6 sections
 - Field types: TEXT, DATE, CHECKBOX, SELECT_ONE, CHOICE
-- Sections: Stade, Informations, General info (incapacity table), Medical situation, Professional situation, Readaptation
-- Psychiatric assessment tables (A–D): obstacles, cognitive capacities, possible activities, work rhythm
 
 ### Geneva Template (`docx_filler_geneve.py`, 101 lines)
 - Simpler: 4 header form fields + 14 single-cell answer tables
-- Header: patient name, DOB, AVS number, doctor name
-- 14 questions covering anamnesis through work capacity
 
 ### Field Maps
-- `fribourg_field_map.py`: `FormField`, `TableCell`, `HeaderLabel` dataclasses; `CHOICE_COLUMNS` mapping; `get_ai_prompt_schema()` for AI prompt construction
+- `fribourg_field_map.py`: `FormField`, `TableCell`, `HeaderLabel` dataclasses; `CHOICE_COLUMNS` mapping; `get_ai_prompt_schema()`
 - `geneve_field_map.py`: `FormField` + `AnswerTable` dataclasses with field indices
-
-## Target Architecture (services to build)
-```
-services/
-  blob.py          — Azure Blob Storage client (upload/download documents)
-  document_ai.py   — Azure Document Intelligence client (OCR/text extraction)
-  openai.py        — Azure OpenAI client (GPT-4o report generation)
-  queue.py         — Azure Service Bus producer (async ingestion jobs)
-  ingestion.py     — Document ingestion pipeline orchestrator
-  classifier.py    — Document classification logic
-```
-
----
-
-## Document Ingestion Pipeline
-
-### Flow
-```
-Upload → Blob Storage → Service Bus queue → Worker picks up job
-  → Document Intelligence (OCR/extract text)
-  → Classify document type (consultation, bilan, previous report, lab results, etc.)
-  → Store extracted text + metadata in PostgreSQL
-  → Link to patient dossier
-```
-
-### Steps
-1. **Upload**: User uploads PDF/DOCX/image via frontend
-2. **Store raw**: File saved to Azure Blob Storage (CMK encrypted, scoped to cabinet)
-3. **Queue**: Ingestion job published to Azure Service Bus
-4. **Extract**: Worker calls Azure Document Intelligence (Layout mode) → structured text
-5. **Classify**: AI classifies document type (consultation note, lab result, previous AI report, etc.)
-6. **Index**: Extracted text + classification stored in PostgreSQL, linked to patient
-
-### Key Tables (planned)
-- `cabinets` — tenant (one per psychiatric practice)
-- `users` — doctors, linked to cabinet
-- `patients` — patient dossiers, scoped to cabinet
-- `documents` — uploaded files metadata (blob path, type, classification, extracted text)
-- `reports` — generated AI reports (rapport AI), linked to patient + source documents
-
----
-
-## Patient Dossier Model
-
-Each patient dossier contains:
-- **Patient info**: name, date of birth, AI case number
-- **Documents**: all uploaded files, classified and organized by type
-- **Timeline**: chronological view of consultations, assessments, reports
-- **Generated reports**: AI-produced rapport AI documents
-
-### Document Classification Categories
-- Consultation notes / anamnesis
-- Psychiatric assessments (bilans)
-- Previous AI reports (from other doctors or older versions)
-- Lab results / somatic findings
-- Correspondence (letters from AI office, other doctors)
-- Prescriptions / medication lists
-- Legal documents (mandates, court orders)
-
-### Document Reorganization
-Documents are automatically:
-1. Classified by type (via AI after OCR)
-2. Sorted chronologically
-3. Grouped by category in the dossier view
-4. Made searchable via extracted text
-
----
-
-## Report Generation (Rapport AI)
-
-### Flow
-```
-Select patient → Choose report template → AI generates draft
-  → Doctor reviews/edits → Export DOCX (optional PDF)
-```
-
-### Inputs to AI
-- All classified documents from the patient dossier
-- Extracted text from each document
-- Report template (standardized cantonal form structure)
-- Swiss case law requirements (Foerster criteria, structured assessment indicators)
-
-### Output
-- DOCX document following cantonal AI office format
-- Structured sections: anamnesis, findings, diagnosis (ICD-10/11), functional capacity assessment, prognosis
-- Optional PDF export
 
 ---
 
 ## TODO (Backend)
-- [ ] Rewrite `database.py` → asyncpg connection pool
 - [ ] Rewrite `auth.py` → Clerk JWT validation
-- [ ] Set up Alembic + initial migration (cabinets, users, patients, documents, reports)
-- [ ] Add `services/blob.py` — Azure Blob Storage upload/download
-- [ ] Add `services/document_ai.py` — Azure Document Intelligence OCR
-- [ ] Add `services/openai.py` — Azure OpenAI GPT-4o client
-- [ ] Add `services/queue.py` — Azure Service Bus producer
-- [ ] Add `services/ingestion.py` — Ingestion pipeline orchestrator
-- [ ] Add `routers/patients.py` — Patient CRUD
-- [ ] Add `routers/documents.py` — Document upload + listing
-- [ ] Add `routers/reports.py` — Report generation + export
-- [ ] Update `config.py` with Azure env vars
+- [ ] Set up asyncpg + Alembic migrations (replace in-memory store)
+- [ ] Add `services/blob.py` — Azure Blob Storage for document persistence
+- [ ] Wire slide-over editor to real LLM field values (not mock)
+- [ ] "Mettre à jour" — re-generate report with edited fields
 
-## Adding a New Feature (Backend)
-1. Add Pydantic schema(s) to `app/schemas.py`
-2. Create router in `app/routers/my_feature.py`
-3. Register router in `app/main.py`
-4. Add Alembic migration if needed: `alembic revision --autogenerate -m "description"`
+## Adding a New Agent
+1. Create folder `app/{agent_name}/`
+2. Add `schemas.py` (Pydantic models), `constants.py` (prompt, config), `helpers.py` (if needed), `services.py` (agent logic), `routes.py` (thin)
+3. Register router in `app/main.py` with `prefix="/api"`
+4. Create `memory/agents/{agent_name}.md` documenting the agent
+5. Reference in this file and MEMORY.md

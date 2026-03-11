@@ -1,5 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 import { FileText, Shield, TrendingDown } from "lucide-react";
+import type { CategoryType, DocumentClassification } from "@/lib/schemas/classification";
 
 // --- Patient types & mock data ---
 
@@ -406,33 +407,16 @@ export const CANTONS: { value: Canton; label: string }[] = [
   { value: "geneve", label: "Genève" },
 ];
 
-// Categories for uploaded documents in the wizard
-export type DocCategory = "dpi-smeex" | "antecedents" | "rapports-medicaux" | "imagerie" | "autre";
-
-export const DOC_CATEGORY_LABELS: Record<DocCategory, string> = {
-  "dpi-smeex": "DPI (SMEEX)",
-  antecedents: "Antécédents",
-  "rapports-medicaux": "Rapports médicaux",
-  imagerie: "Imagerie",
-  autre: "Autre",
-};
-
-export const DOC_CATEGORY_COLORS: Record<DocCategory, string> = {
-  "dpi-smeex": "indigo",
-  antecedents: "amber",
-  "rapports-medicaux": "blue",
-  imagerie: "purple",
-  autre: "zinc",
-};
-
 // A single uploaded & processed document in the wizard
 export interface WizardDocument {
   id: string;
+  file: File;                              // actual File object kept for backend upload
   fileName: string;
   fileSize: number;
-  category: DocCategory;
-  status: "classifying" | "extracting" | "done" | "error";
-  extractedFields: number; // how many data points were extracted
+  category: CategoryType;                  // 9-value category from classification agent
+  status: "classifying" | "done" | "error";
+  classification: DocumentClassification | null; // full backend response
+  summary: string;                         // one-line summary from classification
 }
 
 // Extracted information organized by section

@@ -15,9 +15,11 @@ Next.js 16 + FastAPI + Azure (100% Swiss-hosted). Clerk for auth. Azure PostgreS
 | [memory/product.md](memory/product.md) | Problem, users, vision, MVP scope |
 | [memory/architecture.md](memory/architecture.md) | Azure infra, env vars, database patterns, file structure |
 | [memory/frontend.md](memory/frontend.md) | Next.js structure, Catalyst components, styling conventions |
-| [memory/backend.md](memory/backend.md) | FastAPI structure, routers, services, code patterns |
+| [memory/backend.md](memory/backend.md) | FastAPI, agent architecture, services, code patterns |
 | [memory/auth.md](memory/auth.md) | Clerk setup, proxy.ts, JWT validation, route protection |
 | [memory/lessons.md](memory/lessons.md) | Corrections from user, patterns to follow/avoid |
+| [memory/status.md](memory/status.md) | Project status, what's built, roadmap |
+| [memory/agents/classification.md](memory/agents/classification.md) | Classification Agent (Step 1) — schema, files, prompt |
 
 ---
 
@@ -79,6 +81,6 @@ Next.js 16 + FastAPI + Azure (100% Swiss-hosted). Clerk for auth. Azure PostgreS
 
 ## Conventions
 - **Commits**: conventional commits (`feat:`, `fix:`, `docs:`, `chore:`)
-- **API prefix**: `/api/v1/`
+- **API prefix**: `/api/`
 - **Error format**: `{ "detail": "Human-readable message" }`
 - **Database**: asyncpg, raw parameterized SQL, no ORM, Alembic migrations

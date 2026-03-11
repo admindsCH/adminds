@@ -4,7 +4,7 @@ import clsx from "clsx";
 
 // ── Constants ────────────────────────────────────────────
 
-const STEPS = ["Documents", "Résumé", "Compléments", "Rapport"] as const;
+const STEPS = ["Documents", "Résumé", "Rapport AI"] as const;
 
 // ── Component ────────────────────────────────────────────
 

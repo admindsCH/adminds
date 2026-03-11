@@ -6,18 +6,17 @@ import { Heading } from "@/components/heading";
 import { Text } from "@/components/text";
 import { Button } from "@/components/button";
 import type { Canton, WizardDocument } from "@/lib/mock-data";
+import type { PatientDossier } from "@/lib/schemas/classification";
 import { WizardStepper, TOTAL_STEPS } from "./_components/wizard-stepper";
 import { StepDocuments } from "./_components/step-documents";
 import { StepSummary } from "./_components/step-summary";
-import { StepSupplements } from "./_components/step-supplements";
 import { StepReport } from "./_components/step-report";
 
 // ── Step descriptions shown below the heading ────────────
 
 const STEP_DESCRIPTIONS = [
-  "Commencez par importer les documents du patient.",
-  "Vérifiez les informations extraites de vos documents.",
-  "Ajoutez des informations complémentaires.",
+  "Commencez par importer les documents du dossier patient.",
+  "Vérifiez et complétez les informations extraites de vos documents.",
   "Votre rapport est prêt à être généré.",
 ];
 
@@ -33,6 +32,11 @@ export default function RapportPage() {
   );
   // docs state is lifted here so the page can compute `canNext` for step 1
   const [docs, setDocs] = useState<WizardDocument[]>([]);
+  // Dossier state — set after parse-dossier, persisted server-side, passed to all steps
+  const [dossierId, setDossierId] = useState<string | null>(null);
+  const [dossier, setDossier] = useState<PatientDossier | null>(null);
+  // Notes — psychiatrist's own observations, entered in Step 1 before AI analysis
+  const [notes, setNotes] = useState("");
 
   // Sync canton from Clerk metadata when it loads
   useEffect(() => {
@@ -43,6 +47,7 @@ export default function RapportPage() {
 
   // Step 1 requires at least one classified document to proceed
   const canNext = step === 0 ? docs.some((d) => d.status === "done") : true;
+
 
   return (
     <>
@@ -62,10 +67,27 @@ export default function RapportPage() {
 
       {/* Step content */}
       <div className="mt-8">
-        {step === 0 && <StepDocuments docs={docs} onDocsChange={setDocs} />}
-        {step === 1 && <StepSummary />}
-        {step === 2 && <StepSupplements />}
-        {step === 3 && <StepReport canton={canton} />}
+        {step === 0 && (
+          <StepDocuments
+            docs={docs}
+            onDocsChange={setDocs}
+            notes={notes}
+            onNotesChange={setNotes}
+          />
+        )}
+        {step === 1 && (
+          <StepSummary
+            docs={docs}
+            notes={notes}
+            dossierId={dossierId}
+            dossier={dossier}
+            onDossierChange={(id, d) => {
+              setDossierId(id);
+              setDossier(d);
+            }}
+          />
+        )}
+        {step === 2 && <StepReport canton={canton} dossierId={dossierId} />}
       </div>
 
       {/* Navigation */}
