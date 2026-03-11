@@ -11,7 +11,7 @@ import asyncio
 
 from fastapi import HTTPException, UploadFile
 from langchain_core.messages import HumanMessage, SystemMessage
-from langchain_openai import ChatOpenAI
+from langchain_openai import AzureChatOpenAI
 from loguru import logger
 
 from app.config import settings
@@ -32,15 +32,13 @@ from app.classification.schemas import (
 )
 
 
-def _get_model() -> ChatOpenAI:
-    """Create the OpenAI chat model.
-
-    Isolated so switching to AzureChatOpenAI later requires changing
-    only this function.
-    """
-    return ChatOpenAI(
-        model=settings.openai_model,
-        api_key=settings.openai_api_key,
+def _get_model() -> AzureChatOpenAI:
+    """Create the Azure OpenAI chat model via private endpoint."""
+    return AzureChatOpenAI(
+        azure_deployment=settings.azure_openai_deployment,
+        api_key=settings.azure_openai_api_key,
+        azure_endpoint=settings.azure_openai_endpoint,
+        api_version=settings.azure_openai_api_version,
         temperature=0,
     )
 

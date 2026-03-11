@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 
-from app.config import settings
+from app.config import load_secrets_from_keyvault, settings
 from app.schemas import HealthResponse
 
 
@@ -17,8 +17,22 @@ class _InterceptHandler(logging.Handler):
 
 
 logging.basicConfig(handlers=[_InterceptHandler()], level=logging.INFO, force=True)
+
+# Silence verbose Azure SDK HTTP logs
+logging.getLogger("azure").setLevel(logging.WARNING)
 logger.remove()
 logger.add(sys.stderr, level="INFO", colorize=True)
+
+# Load secrets from Azure Key Vault (if AZURE_KEYVAULT_URL is set).
+# Falls back to env vars / .env file when Key Vault is not configured.
+load_secrets_from_keyvault()
+
+logger.info(
+    f"Azure OpenAI config: endpoint={settings.azure_openai_endpoint}, "
+    f"deployment={settings.azure_openai_deployment}, "
+    f"api_version={settings.azure_openai_api_version}, "
+    f"api_key={'***' + settings.azure_openai_api_key[-4:] if settings.azure_openai_api_key else 'NOT SET'}"
+)
 
 app = FastAPI(
     title="Adminds API",

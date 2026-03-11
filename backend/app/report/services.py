@@ -13,7 +13,7 @@ from typing import Any
 
 from fastapi import HTTPException
 from langchain_core.messages import HumanMessage, SystemMessage
-from langchain_openai import ChatOpenAI
+from langchain_openai import AzureChatOpenAI
 from loguru import logger
 
 from app.classification import store
@@ -33,15 +33,17 @@ from app.services.geneve_field_map import (
 TEMPLATES_DIR = Path(__file__).resolve().parent.parent.parent / "templates"
 
 
-def _get_model() -> ChatOpenAI:
-    """Create the OpenAI chat model with JSON response format.
+def _get_model() -> AzureChatOpenAI:
+    """Create the Azure OpenAI chat model with JSON response format.
 
     Same factory as classification/services.py but with JSON mode enabled
     so the model returns a parseable JSON object (not Pydantic structured output).
     """
-    return ChatOpenAI(
-        model=settings.openai_model,
-        api_key=settings.openai_api_key,
+    return AzureChatOpenAI(
+        azure_deployment=settings.azure_openai_deployment,
+        api_key=settings.azure_openai_api_key,
+        azure_endpoint=settings.azure_openai_endpoint,
+        api_version=settings.azure_openai_api_version,
         temperature=0,
         model_kwargs={"response_format": {"type": "json_object"}},
     )

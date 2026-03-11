@@ -1,6 +1,7 @@
 # Dependencies
 node_modules/
 .pnpm-store/
+package-lock.json
 
 # Next.js
 frontend/.next/
@@ -33,3 +34,5 @@ backend/data/
 
 # uv
 backend/uv.lock
+
+architecture.svg
