@@ -12,10 +12,8 @@ from docx import Document
 from app.classification.constants import MAX_TEXT_CHARS
 
 # DPI for PDF→PNG conversion. 200 gives clean character rendering
-# (accented chars were garbled at 150) while keeping token cost reasonable.
 _PDF_DPI = 200
 
-# MIME types for image extensions.
 _IMAGE_MIMES: dict[str, str] = {
     ".jpg": "image/jpeg",
     ".jpeg": "image/jpeg",
@@ -51,11 +49,15 @@ def file_to_content_blocks(
     if ext in _IMAGE_MIMES:
         mime = _IMAGE_MIMES[ext]
         b64 = base64.b64encode(file_bytes).decode()
-        return [{"type": "image_url", "image_url": {"url": f"data:{mime};base64,{b64}"}}]
+        return [
+            {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{b64}"}}
+        ]
 
     if ext in {".docx", ".doc"}:
         text = _docx_to_text(file_bytes)
-        return [{"type": "text", "text": f"Contenu du document '{filename}':\n\n{text}"}]
+        return [
+            {"type": "text", "text": f"Contenu du document '{filename}':\n\n{text}"}
+        ]
 
     return [{"type": "text", "text": f"[Fichier non supporté: {filename}]"}]
 
@@ -65,16 +67,10 @@ def _pdf_to_image_blocks(
 ) -> list[dict]:
     """Render each PDF page as a PNG and return as image_url content blocks.
 
-    OpenAI's vision API only accepts image MIME types, not raw PDFs.
-    pymupdf renders each page to a pixmap, which we export as PNG bytes
-    and base64-encode for the data URL.
-
     Args:
-        max_pages: If set, only render the first N pages. Keeps token cost
-                   low for tasks like classification that don't need full content.
+        max_pages: If set, only render the first N pages.
     """
     doc = fitz.open(stream=file_bytes, filetype="pdf")
-    # zoom factor from DPI: 150 DPI / 72 default = ~2.08x.
     zoom = _PDF_DPI / 72
     matrix = fitz.Matrix(zoom, zoom)
 
@@ -88,7 +84,9 @@ def _pdf_to_image_blocks(
         # Export pixmap as PNG bytes.
         png_bytes = pix.tobytes("png")
         b64 = base64.b64encode(png_bytes).decode()
-        blocks.append({"type": "image_url", "image_url": {"url": f"data:image/png;base64,{b64}"}})
+        blocks.append(
+            {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{b64}"}}
+        )
 
     doc.close()
     return blocks

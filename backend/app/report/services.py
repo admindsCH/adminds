@@ -1,9 +1,3 @@
-"""Report generation service.
-
-Takes a stored PatientDossier, uses GPT-4o to map semantic fields to
-canton-specific form values, then fills the .docx template.
-"""
-
 from __future__ import annotations
 
 import base64
@@ -13,13 +7,12 @@ from typing import Any
 
 from fastapi import HTTPException
 from langchain_core.messages import HumanMessage, SystemMessage
-from langchain_openai import AzureChatOpenAI
 from loguru import logger
 
 from app.classification import store
 from app.classification.schemas import PatientDossier
-from app.config import settings
 from app.report.constants import REPORT_SYSTEM_PROMPT
+from app.services.azure_openai import get_model
 from app.services.docx_filler import fill_fribourg_template
 from app.services.docx_filler_geneve import fill_geneve_template
 from app.services.fribourg_field_map import (
@@ -33,20 +26,6 @@ from app.services.geneve_field_map import (
 TEMPLATES_DIR = Path(__file__).resolve().parent.parent.parent / "templates"
 
 
-def _get_model() -> AzureChatOpenAI:
-    """Create the Azure OpenAI chat model with JSON response format.
-
-    Same factory as classification/services.py but with JSON mode enabled
-    so the model returns a parseable JSON object (not Pydantic structured output).
-    """
-    return AzureChatOpenAI(
-        azure_deployment=settings.azure_openai_deployment,
-        api_key=settings.azure_openai_api_key,
-        azure_endpoint=settings.azure_openai_endpoint,
-        api_version=settings.azure_openai_api_version,
-        temperature=0,
-        model_kwargs={"response_format": {"type": "json_object"}},
-    )
 
 
 def _build_patient_context(dossier: PatientDossier) -> str:
@@ -56,14 +35,12 @@ def _build_patient_context(dossier: PatientDossier) -> str:
     """
     parts: list[str] = []
 
-    # --- Raw content first (source of truth, matches prompt "raw_content") ---
     if dossier.raw_content:
         parts.append(
             "RAW_CONTENT (dossier patient brut — source de vérité):\n\n"
             + dossier.raw_content
         )
 
-    # --- Patient info ---
     pi = dossier.patient_info
     info_lines = []
     if pi.age is not None:
@@ -77,13 +54,6 @@ def _build_patient_context(dossier: PatientDossier) -> str:
     if info_lines:
         parts.append("INFORMATIONS PATIENT:\n" + "\n".join(info_lines))
 
-    # --- rapport_ai_fields deliberately excluded ---
-    # These are Step 2 summaries that may be frozen at an intermediate
-    # point in the timeline.  raw_content + timeline + diagnostics +
-    # medications already carry all the information the LLM needs, so
-    # injecting a lossy pre-summary only risks contaminating the output.
-
-    # --- Diagnostics ---
     if dossier.diagnostics:
         diag_lines = []
         for d in dossier.diagnostics:
@@ -91,7 +61,6 @@ def _build_patient_context(dossier: PatientDossier) -> str:
             diag_lines.append(f"- {d.label}{code} [{d.type}]")
         parts.append("DIAGNOSTICS:\n" + "\n".join(diag_lines))
 
-    # --- Medications ---
     if dossier.medications:
         med_lines = []
         for m in dossier.medications:
@@ -100,7 +69,6 @@ def _build_patient_context(dossier: PatientDossier) -> str:
             med_lines.append(f"- {m.nom}{dosage}{date}")
         parts.append("MÉDICATION:\n" + "\n".join(med_lines))
 
-    # --- Timeline (chronological events) ---
     if dossier.timeline:
         tl_lines = []
         for entry in dossier.timeline:
@@ -109,7 +77,6 @@ def _build_patient_context(dossier: PatientDossier) -> str:
             tl_lines.append(f"[{date}] {entry.title}{source}: {entry.summary}")
         parts.append("CHRONOLOGIE:\n" + "\n".join(tl_lines))
 
-    # --- Notes from the psychiatrist ---
     if dossier.notes:
         parts.append(f"NOTES DU MÉDECIN TRAITANT:\n{dossier.notes}")
 
@@ -129,7 +96,9 @@ def _get_canton_config(canton: str) -> tuple[list[dict], str, str]:
         raise HTTPException(status_code=400, detail=f"Canton inconnu: {canton}")
 
 
-def _fill_template(canton: str, template_path: str, field_values: dict[str, Any]) -> bytes:
+def _fill_template(
+    canton: str, template_path: str, field_values: dict[str, Any]
+) -> bytes:
     """Fill the docx template for the given canton. Returns docx bytes."""
     if canton == "fribourg":
         return fill_fribourg_template(template_path, field_values)
@@ -166,11 +135,13 @@ async def generate_report(dossier_id: str, canton: str) -> dict[str, Any]:
     )
 
     # 5. Call GPT-4o in JSON mode
-    model = _get_model()
-    response = await model.ainvoke([
-        SystemMessage(content=system_prompt),
-        HumanMessage(content=patient_context),
-    ])
+    model = get_model(model_kwargs={"response_format": {"type": "json_object"}})
+    response = await model.ainvoke(
+        [
+            SystemMessage(content=system_prompt),
+            HumanMessage(content=patient_context),
+        ]
+    )
 
     # Parse the JSON response into a flat dict
     field_values: dict[str, Any] = json.loads(response.content)
@@ -178,9 +149,7 @@ async def generate_report(dossier_id: str, canton: str) -> dict[str, Any]:
     # Remove null values — the fillers skip missing keys
     field_values = {k: v for k, v in field_values.items() if v is not None}
 
-    logger.info(
-        f"LLM returned {len(field_values)} field values for {canton} report"
-    )
+    logger.info(f"LLM returned {len(field_values)} field values for {canton} report")
 
     # 6. Fill the template
     docx_bytes = _fill_template(canton, template_path, field_values)

@@ -2,18 +2,20 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    # App URLs
     api_url: str = "http://localhost:8000"
     app_url: str = "http://localhost:3000"
 
-    # Azure OpenAI (via private endpoint)
+    # Azure OpenAI
     azure_openai_api_key: str = ""
-    azure_openai_endpoint: str = ""  # e.g. https://adminds-openai.openai.azure.com
+    azure_openai_endpoint: str = ""
     azure_openai_api_version: str = "2024-12-01-preview"
-    azure_openai_deployment: str = "gpt-4o"  # deployment name in Azure
+    azure_openai_deployment: str = "gpt-4o"
 
-    # Azure Key Vault (optional — if set, secrets are loaded from Key Vault at startup)
-    azure_keyvault_url: str = ""  # e.g. https://adminds-kv.vault.azure.net
+    # Azure Document Intelligence
+    azure_document_intelligence_endpoint: str = ""
+    azure_document_intelligence_key: str = ""
+
+    azure_keyvault_url: str = ""
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 
@@ -43,6 +45,7 @@ def load_secrets_from_keyvault() -> None:
     # Map: Key Vault secret name → settings attribute
     secret_map = {
         "azure-openai-api-key": "azure_openai_api_key",
+        "azure-document-intelligence-key": "azure_document_intelligence_key",
     }
 
     for secret_name, attr in secret_map.items():

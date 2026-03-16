@@ -1,18 +1,27 @@
 import logging
 import sys
+from importlib.metadata import version
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 
+from app.classification.routes import router as classification_router
 from app.config import load_secrets_from_keyvault, settings
+from app.report.routes import router as report_router
+from app.routers import hello
+from app.routers.test_doc_intelligence import router as test_doc_intelligence_router
 from app.schemas import HealthResponse
 
 
 # Route standard library logs (uvicorn, langchain, etc.) through loguru for colored output.
 class _InterceptHandler(logging.Handler):
     def emit(self, record: logging.LogRecord) -> None:
-        level = record.levelname if record.levelname in ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL") else record.levelno
+        level = (
+            record.levelname
+            if record.levelname in ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL")
+            else record.levelno
+        )
         logger.opt(depth=6, exception=record.exc_info).log(level, record.getMessage())
 
 
@@ -34,9 +43,11 @@ logger.info(
     f"api_key={'***' + settings.azure_openai_api_key[-4:] if settings.azure_openai_api_key else 'NOT SET'}"
 )
 
+_version = version("adminds-api")
+
 app = FastAPI(
     title="Adminds API",
-    version="0.1.0",
+    version=_version,
     docs_url="/docs",
     openapi_url="/openapi.json",
 )
@@ -71,14 +82,11 @@ app.add_middleware(
 
 @app.get("/health", response_model=HealthResponse)
 async def health() -> HealthResponse:
-    return HealthResponse(status="ok", version="0.1.0")
+    return HealthResponse(status="ok", version=_version)
 
 
 # Register routers
-from app.routers import hello
-from app.classification.routes import router as classification_router
-from app.report.routes import router as report_router
-
 app.include_router(hello.router, prefix="/api")
 app.include_router(classification_router, prefix="/api")
 app.include_router(report_router, prefix="/api")
+app.include_router(test_doc_intelligence_router, prefix="/api")

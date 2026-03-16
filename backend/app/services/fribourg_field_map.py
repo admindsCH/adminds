@@ -28,35 +28,39 @@ from typing import Literal
 # ── Value types ─────────────────────────────────────────────
 # Each field expects one of these value shapes from the AI output.
 
+
 class FieldType(str, Enum):
-    TEXT = "text"                # Free text (single or multi-line)
-    DATE = "date"               # DD.MM.YYYY
-    CHECKBOX = "checkbox"       # true / false
-    SELECT_ONE = "select_one"   # Bold/underline the selected option among siblings
-    CHOICE = "choice"           # "X" in the matching column (Oui/Non/etc.)
+    TEXT = "text"  # Free text (single or multi-line)
+    DATE = "date"  # DD.MM.YYYY
+    CHECKBOX = "checkbox"  # true / false
+    SELECT_ONE = "select_one"  # Bold/underline the selected option among siblings
+    CHOICE = "choice"  # "X" in the matching column (Oui/Non/etc.)
 
 
 # ── Field descriptors ───────────────────────────────────────
 
+
 @dataclass
 class FormField:
     """A fldChar-based form field in the docx."""
-    id: str                     # Unique key used in the AI JSON
-    ff_index: int               # Index in document's ffData list
+
+    id: str  # Unique key used in the AI JSON
+    ff_index: int  # Index in document's ffData list
     field_type: FieldType
-    label: str                  # Human-readable label (for prompt)
-    section: str                # Report section name
-    hint: str = ""              # Extra context for the AI
+    label: str  # Human-readable label (for prompt)
+    section: str  # Report section name
+    hint: str = ""  # Extra context for the AI
     options: list[str] = field(default_factory=list)  # For select_one
 
 
 @dataclass
 class TableCell:
     """A plain table cell identified by position."""
+
     id: str
-    table_index: int            # Index in document's table list
-    row: int                    # 0-based row
-    col: int                    # 0-based column
+    table_index: int  # Index in document's table list
+    row: int  # 0-based row
+    col: int  # 0-based column
     field_type: FieldType
     label: str
     section: str
@@ -66,11 +70,12 @@ class TableCell:
 @dataclass
 class HeaderLabel:
     """A table cell whose label text gets replaced with a value."""
+
     id: str
     table_index: int
     row: int
     col: int
-    original_text: str          # Text to find/replace
+    original_text: str  # Text to find/replace
     label: str
     section: str
 
@@ -83,14 +88,18 @@ HEADER_FIELDS: list[HeaderLabel] = [
     # Doctor name appears in two header tables
     HeaderLabel(
         id="doctor_name_header1",
-        table_index=0, row=1, col=0,
+        table_index=0,
+        row=1,
+        col=0,
         original_text="Nom et prénom du médecin",
         label="Nom et prénom du médecin (en-tête page 1)",
         section="header",
     ),
     HeaderLabel(
         id="doctor_name_header2",
-        table_index=2, row=0, col=0,
+        table_index=2,
+        row=0,
+        col=0,
         original_text="Nom et prénom du médecin",
         label="Nom et prénom du médecin (en-tête page 2)",
         section="header",
@@ -110,10 +119,10 @@ STADE_FIELDS: list[FormField] = [
         section="stade",
         hint="Choisir un seul parmi les 4 options",
         options=[
-            "Première demande AI",   # ff_index 0
-            "Nouvelle demande AI",   # ff_index 1
-            "Révision d'office",     # ff_index 2
-            "Demande de révision",   # ff_index 3
+            "Première demande AI",  # ff_index 0
+            "Nouvelle demande AI",  # ff_index 1
+            "Révision d'office",  # ff_index 2
+            "Demande de révision",  # ff_index 3
         ],
     ),
 ]
@@ -523,22 +532,30 @@ _SECTION_A_ITEMS = [
 SECTION_A_FIELDS: list[TableCell] = []
 for idx, (key, label) in enumerate(_SECTION_A_ITEMS):
     # Each row has 4 fillable columns: Oui(1), Non(2), Ne sais pas(3), Préciser(4)
-    SECTION_A_FIELDS.append(TableCell(
-        id=f"{key}_choice",
-        table_index=33, row=idx + 1, col=-1,  # col determined by choice value
-        field_type=FieldType.CHOICE,
-        label=f"A.{idx+1}. {label}",
-        section="psych_a_freins",
-        hint="Répondre: 'oui', 'non', ou 'ne_sais_pas'",
-    ))
-    SECTION_A_FIELDS.append(TableCell(
-        id=f"{key}_detail",
-        table_index=33, row=idx + 1, col=4,
-        field_type=FieldType.TEXT,
-        label=f"A.{idx+1}. {label} — préciser si oui",
-        section="psych_a_freins",
-        hint="Laisser vide si Non ou Ne sais pas",
-    ))
+    SECTION_A_FIELDS.append(
+        TableCell(
+            id=f"{key}_choice",
+            table_index=33,
+            row=idx + 1,
+            col=-1,  # col determined by choice value
+            field_type=FieldType.CHOICE,
+            label=f"A.{idx + 1}. {label}",
+            section="psych_a_freins",
+            hint="Répondre: 'oui', 'non', ou 'ne_sais_pas'",
+        )
+    )
+    SECTION_A_FIELDS.append(
+        TableCell(
+            id=f"{key}_detail",
+            table_index=33,
+            row=idx + 1,
+            col=4,
+            field_type=FieldType.TEXT,
+            label=f"A.{idx + 1}. {label} — préciser si oui",
+            section="psych_a_freins",
+            hint="Laisser vide si Non ou Ne sais pas",
+        )
+    )
 
 # Section B: Capacités cognitives — table 34, 6 data rows
 # Columns: Non limitée(1), Limitée(2), genre(3)
@@ -553,22 +570,30 @@ _SECTION_B_ITEMS = [
 
 SECTION_B_FIELDS: list[TableCell] = []
 for idx, (key, label) in enumerate(_SECTION_B_ITEMS):
-    SECTION_B_FIELDS.append(TableCell(
-        id=f"{key}_choice",
-        table_index=34, row=idx + 1, col=-1,
-        field_type=FieldType.CHOICE,
-        label=f"B.{idx+1}. {label}",
-        section="psych_b_capacites",
-        hint="Répondre: 'non_limitee' ou 'limitee'",
-    ))
-    SECTION_B_FIELDS.append(TableCell(
-        id=f"{key}_detail",
-        table_index=34, row=idx + 1, col=3,
-        field_type=FieldType.TEXT,
-        label=f"B.{idx+1}. {label} — genre de limitation",
-        section="psych_b_capacites",
-        hint="Laisser vide si non limitée",
-    ))
+    SECTION_B_FIELDS.append(
+        TableCell(
+            id=f"{key}_choice",
+            table_index=34,
+            row=idx + 1,
+            col=-1,
+            field_type=FieldType.CHOICE,
+            label=f"B.{idx + 1}. {label}",
+            section="psych_b_capacites",
+            hint="Répondre: 'non_limitee' ou 'limitee'",
+        )
+    )
+    SECTION_B_FIELDS.append(
+        TableCell(
+            id=f"{key}_detail",
+            table_index=34,
+            row=idx + 1,
+            col=3,
+            field_type=FieldType.TEXT,
+            label=f"B.{idx + 1}. {label} — genre de limitation",
+            section="psych_b_capacites",
+            hint="Laisser vide si non limitée",
+        )
+    )
 
 # Section C: Activités encore possibles — table 35, 8 data rows
 # Columns: Oui(1), Non(2), De manière fluctuante(3), Préciser(4)
@@ -585,22 +610,30 @@ _SECTION_C_ITEMS = [
 
 SECTION_C_FIELDS: list[TableCell] = []
 for idx, (key, label) in enumerate(_SECTION_C_ITEMS):
-    SECTION_C_FIELDS.append(TableCell(
-        id=f"{key}_choice",
-        table_index=35, row=idx + 1, col=-1,
-        field_type=FieldType.CHOICE,
-        label=f"C.{idx+1}. {label}",
-        section="psych_c_activites",
-        hint="Répondre: 'oui', 'non', ou 'fluctuant'",
-    ))
-    SECTION_C_FIELDS.append(TableCell(
-        id=f"{key}_detail",
-        table_index=35, row=idx + 1, col=4,
-        field_type=FieldType.TEXT,
-        label=f"C.{idx+1}. {label} — préciser si non ou fluctuant",
-        section="psych_c_activites",
-        hint="Laisser vide si Oui",
-    ))
+    SECTION_C_FIELDS.append(
+        TableCell(
+            id=f"{key}_choice",
+            table_index=35,
+            row=idx + 1,
+            col=-1,
+            field_type=FieldType.CHOICE,
+            label=f"C.{idx + 1}. {label}",
+            section="psych_c_activites",
+            hint="Répondre: 'oui', 'non', ou 'fluctuant'",
+        )
+    )
+    SECTION_C_FIELDS.append(
+        TableCell(
+            id=f"{key}_detail",
+            table_index=35,
+            row=idx + 1,
+            col=4,
+            field_type=FieldType.TEXT,
+            label=f"C.{idx + 1}. {label} — préciser si non ou fluctuant",
+            section="psych_c_activites",
+            hint="Laisser vide si Oui",
+        )
+    )
 
 # Section D: Rythme de travail — table 36, 3 data rows
 # D.1 and D.2: Oui(1), Non(2), detail(3)
@@ -608,7 +641,9 @@ for idx, (key, label) in enumerate(_SECTION_C_ITEMS):
 SECTION_D_FIELDS: list[TableCell] = [
     TableCell(
         id="d01_choice",
-        table_index=36, row=1, col=-1,
+        table_index=36,
+        row=1,
+        col=-1,
         field_type=FieldType.CHOICE,
         label="D.1. À plein temps ?",
         section="psych_d_rythme",
@@ -616,7 +651,9 @@ SECTION_D_FIELDS: list[TableCell] = [
     ),
     TableCell(
         id="d01_detail",
-        table_index=36, row=1, col=3,
+        table_index=36,
+        row=1,
+        col=3,
         field_type=FieldType.TEXT,
         label="D.1. Si oui, avec quel rendement ?",
         section="psych_d_rythme",
@@ -624,7 +661,9 @@ SECTION_D_FIELDS: list[TableCell] = [
     ),
     TableCell(
         id="d02_choice",
-        table_index=36, row=2, col=-1,
+        table_index=36,
+        row=2,
+        col=-1,
         field_type=FieldType.CHOICE,
         label="D.2. À temps partiel ?",
         section="psych_d_rythme",
@@ -632,7 +671,9 @@ SECTION_D_FIELDS: list[TableCell] = [
     ),
     TableCell(
         id="d02_detail",
-        table_index=36, row=2, col=3,
+        table_index=36,
+        row=2,
+        col=3,
         field_type=FieldType.TEXT,
         label="D.2. Si oui, à quel taux ? avec quel rendement ?",
         section="psych_d_rythme",
@@ -640,7 +681,9 @@ SECTION_D_FIELDS: list[TableCell] = [
     ),
     TableCell(
         id="d03_frequence",
-        table_index=36, row=3, col=1,
+        table_index=36,
+        row=3,
+        col=1,
         field_type=FieldType.TEXT,
         label="D.3. Fréquence prévisible des absences",
         section="psych_d_rythme",
@@ -648,7 +691,9 @@ SECTION_D_FIELDS: list[TableCell] = [
     ),
     TableCell(
         id="d03_duree",
-        table_index=36, row=3, col=2,
+        table_index=36,
+        row=3,
+        col=2,
         field_type=FieldType.TEXT,
         label="D.3. Durée prévisible des absences",
         section="psych_d_rythme",
@@ -722,10 +767,7 @@ ALL_FORM_FIELDS: list[FormField] = (
 )
 
 ALL_TABLE_CELLS: list[TableCell] = (
-    SECTION_A_FIELDS
-    + SECTION_B_FIELDS
-    + SECTION_C_FIELDS
-    + SECTION_D_FIELDS
+    SECTION_A_FIELDS + SECTION_B_FIELDS + SECTION_C_FIELDS + SECTION_D_FIELDS
 )
 
 ALL_HEADER_LABELS: list[HeaderLabel] = HEADER_FIELDS
