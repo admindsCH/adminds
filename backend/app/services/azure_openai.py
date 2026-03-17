@@ -17,3 +17,10 @@ def get_model(**kwargs) -> AzureChatOpenAI:
         temperature=0,
         **kwargs,
     )
+
+
+async def test_hello() -> dict:
+    """Send a simple prompt to Azure OpenAI and return the response."""
+    model = get_model()
+    response = await model.ainvoke("Hello!")
+    return {"response": response.content}
