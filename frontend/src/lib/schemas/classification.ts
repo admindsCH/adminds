@@ -193,6 +193,7 @@ export interface PatientDossier {
   patient_info: PatientInfo;
   rubriques: Rubriques;
   notes: string | null;
+  raw_content: string | null;
 }
 
 /** Response wrapper — dossier with its server-side ID. */
