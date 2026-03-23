@@ -1,8 +1,16 @@
+"""Report generation services.
+
+All report generation goes through the generic template engine:
+1. Load template schema from blob storage
+2. Build system prompt with field schema
+3. LLM fills field values from patient dossier
+4. Generic filler writes values into the template (.docx or .pdf)
+"""
+
 from __future__ import annotations
 
 import base64
 import json
-from pathlib import Path
 from typing import Any
 
 from fastapi import HTTPException
@@ -12,35 +20,23 @@ from loguru import logger
 from app.classification import store
 from app.classification.schemas import PatientDossier
 from app.report.constants import build_system_prompt
+from app.services import blob_storage
 from app.services.azure_openai import get_model
-from app.services.docx_filler import fill_fribourg_template
-from app.services.docx_filler_geneve import fill_geneve_template
-from app.services.fribourg_field_map import (
-    get_ai_prompt_schema as fribourg_schema,
-)
-from app.services.geneve_field_map import (
-    get_ai_prompt_schema as geneve_schema,
-)
-
-# Templates directory — sibling to the app/ package.
-TEMPLATES_DIR = Path(__file__).resolve().parent.parent.parent / "templates"
+from app.templates.generic_filler import fill_template
+from app.templates.pdf_filler import fill_pdf_template
+from app.templates.services import get_schema
 
 
 def _build_patient_context(dossier: PatientDossier) -> str:
-    """Serialize the dossier data into a readable text block for the LLM.
-
-    The LLM uses this context to fill each form field.
-    """
+    """Serialize the dossier data into a readable text block for the LLM."""
     parts: list[str] = []
 
-    # 1. Raw content — source of truth
     if dossier.raw_content:
         parts.append(
             "RAW_CONTENT (dossier patient brut — source de vérité):\n\n"
             + dossier.raw_content
         )
 
-    # 2. Patient info
     pi = dossier.patient_info
     info_lines = []
     if pi.age is not None:
@@ -54,7 +50,6 @@ def _build_patient_context(dossier: PatientDossier) -> str:
     if info_lines:
         parts.append("INFORMATIONS PATIENT:\n" + "\n".join(info_lines))
 
-    # 3. Rubriques — structured clinical data (prose + structured lists)
     rub = dossier.rubriques
     rubrique_names = {
         "r01_historique": "R01 HISTORIQUE",
@@ -86,34 +81,10 @@ def _build_patient_context(dossier: PatientDossier) -> str:
         if lines:
             parts.append(f"{display_name}:\n" + "\n".join(lines))
 
-    # 5. Notes
     if dossier.notes:
         parts.append(f"NOTES DU MÉDECIN TRAITANT:\n{dossier.notes}")
 
     return "\n\n".join(parts)
-
-
-def _get_canton_config(canton: str) -> tuple[list[dict], str, str]:
-    """Return (field_schema, template_path, canton_name) for a canton.
-
-    Raises HTTPException 400 for unknown cantons.
-    """
-    if canton == "fribourg":
-        return fribourg_schema(), str(TEMPLATES_DIR / "fribourg.docx"), "Fribourg"
-    elif canton == "geneve":
-        return geneve_schema(), str(TEMPLATES_DIR / "geneve.docx"), "Genève"
-    else:
-        raise HTTPException(status_code=400, detail=f"Canton inconnu: {canton}")
-
-
-def _fill_template(
-    canton: str, template_path: str, field_values: dict[str, Any]
-) -> bytes:
-    """Fill the docx template for the given canton. Returns docx bytes."""
-    if canton == "fribourg":
-        return fill_fribourg_template(template_path, field_values)
-    else:
-        return fill_geneve_template(template_path, field_values)
 
 
 async def generate_report(
@@ -121,38 +92,25 @@ async def generate_report(
     canton: str,
     template_id: str | None = None,
 ) -> dict[str, Any]:
-    """Generate a filled .docx report from a stored dossier.
+    """Generate a filled report from a stored dossier.
 
-    If template_id is provided, uses the generic template engine.
-    Otherwise, falls back to the legacy canton-specific path.
+    Args:
+        dossier_id: Server-side dossier ID.
+        canton: Canton key (used for legacy compat, ignored if template_id given).
+        template_id: Blob storage template ID (e.g. "rapport-ai/rapport-ai-fribourg").
     """
+    if not template_id:
+        raise HTTPException(
+            status_code=400,
+            detail="template_id est requis. Sélectionnez un template.",
+        )
+
     # 1. Fetch dossier
     dossier = store.get_dossier(dossier_id)
     if dossier is None:
         raise HTTPException(status_code=404, detail="Dossier introuvable")
 
-    # 2. Build patient context
-    patient_context = _build_patient_context(dossier)
-
-    # ── Generic template path ────────────────────────────
-    if template_id:
-        return await _generate_with_template(dossier_id, template_id, patient_context)
-
-    # ── Legacy canton path ───────────────────────────────
-    return await _generate_with_canton(dossier_id, canton, patient_context)
-
-
-async def _generate_with_template(
-    dossier_id: str,
-    template_id: str,
-    patient_context: str,
-) -> dict[str, Any]:
-    """Generate report using the generic template engine."""
-    from app.services import blob_storage
-    from app.templates.generic_filler import fill_template
-    from app.templates.services import get_schema
-
-    # Load schema
+    # 2. Load schema
     schema = get_schema(template_id)
     if schema is None:
         raise HTTPException(
@@ -160,17 +118,15 @@ async def _generate_with_template(
             detail="Schema non trouvé pour ce template. Lancez l'extraction d'abord.",
         )
 
-    # Load template bytes
-    template_bytes = blob_storage.download_template(template_id)
+    # 3. Build patient context
+    patient_context = _build_patient_context(dossier)
 
-    # Build prompt schema (strip positions)
+    # 4. Build prompt schema (strip positions)
     prompt_schema = schema.to_prompt_schema()
 
-    # Build system prompt with dynamic addendum
     system_prompt = build_system_prompt(
         canton_name=schema.template_name,
         field_schema=json.dumps(prompt_schema, ensure_ascii=False, indent=2),
-        canton_addendum=schema.canton_addendum,
     )
 
     logger.info(
@@ -178,7 +134,7 @@ async def _generate_with_template(
         f"dossier_id={dossier_id}, {len(prompt_schema)} fields"
     )
 
-    # Call LLM
+    # 5. Call LLM
     model = get_model(model_kwargs={"response_format": {"type": "json_object"}})
     response = await model.ainvoke(
         [
@@ -192,63 +148,19 @@ async def _generate_with_template(
 
     logger.info(f"LLM returned {len(field_values)} field values")
 
-    # Fill template
-    docx_bytes = fill_template(template_bytes, schema, field_values)
+    # 6. Fill template
+    template_bytes = blob_storage.download_template(template_id)
+    filled_bytes = _fill(schema, template_bytes, field_values)
 
-    # Persist
+    # 7. Persist
     store.save_field_values(dossier_id, field_values)
-    report_path = store.save_report(dossier_id, docx_bytes)
-    logger.info(f"Report generated: {len(docx_bytes)} bytes, saved to {report_path}")
+    report_path = store.save_report(dossier_id, filled_bytes)
+    logger.info(f"Report generated: {len(filled_bytes)} bytes, saved to {report_path}")
 
     return {
         "field_values": field_values,
         "field_schema": prompt_schema,
-        "docx_base64": base64.b64encode(docx_bytes).decode("ascii"),
-    }
-
-
-async def _generate_with_canton(
-    dossier_id: str,
-    canton: str,
-    patient_context: str,
-) -> dict[str, Any]:
-    """Generate report using the legacy canton-specific path."""
-    field_schema, template_path, canton_name = _get_canton_config(canton)
-
-    system_prompt = build_system_prompt(
-        canton_name=canton_name,
-        field_schema=json.dumps(field_schema, ensure_ascii=False, indent=2),
-        canton_key=canton,
-    )
-
-    logger.info(
-        f"Generating report: canton={canton}, dossier_id={dossier_id}, "
-        f"{len(field_schema)} fields in schema"
-    )
-
-    model = get_model(model_kwargs={"response_format": {"type": "json_object"}})
-    response = await model.ainvoke(
-        [
-            SystemMessage(content=system_prompt),
-            HumanMessage(content=patient_context),
-        ]
-    )
-
-    field_values: dict[str, Any] = json.loads(response.content)
-    field_values = {k: v for k, v in field_values.items() if v is not None}
-
-    logger.info(f"LLM returned {len(field_values)} field values for {canton} report")
-
-    docx_bytes = _fill_template(canton, template_path, field_values)
-
-    store.save_field_values(dossier_id, field_values)
-    report_path = store.save_report(dossier_id, docx_bytes)
-    logger.info(f"Report generated: {len(docx_bytes)} bytes, saved to {report_path}")
-
-    return {
-        "field_values": field_values,
-        "field_schema": field_schema,
-        "docx_base64": base64.b64encode(docx_bytes).decode("ascii"),
+        "docx_base64": base64.b64encode(filled_bytes).decode("ascii"),
     }
 
 
@@ -258,35 +170,32 @@ async def update_report(
     field_values: dict[str, Any],
     template_id: str | None = None,
 ) -> dict[str, Any]:
-    """Re-fill the docx template with user-edited field values.
-
-    Saves the updated field values and docx to disk, then returns
-    the new docx as base64.
-    """
+    """Re-fill the template with user-edited field values."""
     if store.get_dossier(dossier_id) is None:
         raise HTTPException(status_code=404, detail="Dossier introuvable")
+    if not template_id:
+        raise HTTPException(status_code=400, detail="template_id est requis.")
 
     field_values = {k: v for k, v in field_values.items() if v is not None}
 
-    if template_id:
-        from app.services import blob_storage
-        from app.templates.generic_filler import fill_template
-        from app.templates.services import get_schema
+    schema = get_schema(template_id)
+    if schema is None:
+        raise HTTPException(status_code=400, detail="Schema non trouvé")
 
-        schema = get_schema(template_id)
-        if schema is None:
-            raise HTTPException(status_code=400, detail="Schema non trouvé")
-
-        template_bytes = blob_storage.download_template(template_id)
-        docx_bytes = fill_template(template_bytes, schema, field_values)
-    else:
-        _, template_path, _ = _get_canton_config(canton)
-        docx_bytes = _fill_template(canton, template_path, field_values)
+    template_bytes = blob_storage.download_template(template_id)
+    filled_bytes = _fill(schema, template_bytes, field_values)
 
     store.save_field_values(dossier_id, field_values)
-    report_path = store.save_report(dossier_id, docx_bytes)
-    logger.info(f"Report updated: {len(docx_bytes)} bytes, saved to {report_path}")
+    report_path = store.save_report(dossier_id, filled_bytes)
+    logger.info(f"Report updated: {len(filled_bytes)} bytes, saved to {report_path}")
 
     return {
-        "docx_base64": base64.b64encode(docx_bytes).decode("ascii"),
+        "docx_base64": base64.b64encode(filled_bytes).decode("ascii"),
     }
+
+
+def _fill(schema, template_bytes: bytes, field_values: dict[str, Any]) -> bytes:
+    """Fill a template based on its format (docx or pdf)."""
+    if schema.template_format == "pdf":
+        return fill_pdf_template(template_bytes, field_values)
+    return fill_template(template_bytes, schema, field_values)

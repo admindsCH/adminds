@@ -131,7 +131,7 @@ def _fill_header_label(
         _add_text_to_cell(tables[table_index], row, col, value)
 
 
-# ── XML helpers (from docx_filler.py — unchanged logic) ──
+# ── XML helpers ──
 
 
 def _set_form_field_text(ff: etree._Element, value: str) -> None:

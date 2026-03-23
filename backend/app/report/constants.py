@@ -291,90 +291,20 @@ RÈGLES FINALES
   remplace tout "la patiente"/"le patient" par "Madame"/"Monsieur", \
   vérifie l'absence de termes interdits.
 
-Retourne UNIQUEMENT un objet JSON valide, sans texte avant ou après.
-
-{canton_addendum}"""
-
-
-# ─────────────────────────────────────────────────────────
-# Canton-specific addenda
-# ─────────────────────────────────────────────────────────
-
-CANTON_ADDENDUM_FRIBOURG = """\
-═══════════════════════════════════════════════════════════
-ADDENDUM CANTONAL — FRIBOURG (formulaire 002.099)
-═══════════════════════════════════════════════════════════
-
-Mapping catégorie sémantique → identifiant(s) de champ Fribourg:
-
-TREATMENT_PERIOD → traitement_du, traitement_au, date_derniere_consultation
-PREVIOUS_CONSULTATIONS → consultations_precedentes_par
-CONSULTATION_FREQUENCY → frequence_consultations
-WORK_INCAPACITY_TIMELINE → incapacite_travail (lignes taux/du/au) + incapacite_activites
-OTHER_PRACTITIONERS → autres_intervenants
-MEDICAL_HISTORY → antecedents_evolution (2.1)
-CURRENT_SYMPTOMS → situation_symptomes_actuels (2.2)
-CURRENT_MEDICATION → medication_actuelle (2.3)
-CLINICAL_EXAMINATION → constats_medicaux (2.4)
-DIAGNOSES_WITH_IMPACT → diagnostics_incidence + diagnostics_incidence_date (2.5)
-DIAGNOSES_WITHOUT_IMPACT → diagnostics_sans_incidence + diagnostics_sans_incidence_date (2.6)
-WORK_CAPACITY_PROGNOSIS → pronostic_capacite_travail (2.7)
-TREATMENT_PLAN → plan_traitement (2.8)
-CURRENT_OCCUPATION → activite_actuelle (3.1)
-PROFESSIONAL_SITUATION_INFO → informations_situation_professionnelle (3.2)
-JOB_REQUIREMENTS → exigences_professionnelles (3.3)
-FUNCTIONAL_LIMITATIONS → limitations_fonctionnelles (3.4) *** CLÉ ***
-REINTEGRATION_RESOURCES → ressources_reinsertion (3.5)
-DRIVING_CAPACITY → doutes_conduite (3.6)
-HOURS_HABITUAL_ACTIVITY → heures_activite_habituelle (4.1)
-HOURS_ADAPTED_ACTIVITY → heures_activite_adaptee (4.2)
-REHABILITATION_PROGNOSIS → pronostic_readaptation (4.3)
-REHABILITATION_OBSTACLES → obstacles_readaptation (4.4)
-HOUSEHOLD_LIMITATIONS → limitations_menageres (4.5)
-RECENT_EVALUATION → evaluation_recente
-CONSTRAINT_ITEMS → A01–A15 + A01_detail–A15_detail
-COGNITIVE_FUNCTION_ITEMS → B01–B06 + B01_detail–B06_detail
-POSSIBLE_ACTIVITY_ITEMS → C01–C08 + C01_detail–C08_detail
-WORK_RHYTHM → D01, D01_rendement, D02, D02_taux, D02_rendement, D03_frequence, D03_duree
-MISCELLANEOUS → divers (6.1)
-
-NOTES FRIBOURG:
-- Sections numérotées 1.1–1.4, 2.1–2.8, 3.1–3.6, 4.1–4.5 + annexe psy A/B/C/D.
-- Stade de procédure: select_one parmi "Première demande AI", \
-  "Nouvelle demande AI", "Révision d'office", "Demande de révision"."""
-
-
-CANTON_ADDENDUM_GENEVE = """\
-═══════════════════════════════════════════════════════════
-ADDENDUM CANTONAL — GENÈVE (formulaire rm_specialiste)
-═══════════════════════════════════════════════════════════
-
-TODO: mapping Q1–Q15 à compléter."""
+Retourne UNIQUEMENT un objet JSON valide, sans texte avant ou après."""
 
 
 def build_system_prompt(
     canton_name: str,
     field_schema: str,
-    canton_key: str = "fribourg",
-    canton_addendum: str | None = None,
 ) -> str:
     """Build the complete system prompt.
 
     Args:
         canton_name: Display name (e.g. "Fribourg" or a template name).
         field_schema: JSON string of field definitions.
-        canton_key: Legacy canton key for looking up hardcoded addenda.
-        canton_addendum: If provided, use this instead of hardcoded addenda.
-            Used by the generic template engine.
     """
-    if canton_addendum is None:
-        addenda = {
-            "fribourg": CANTON_ADDENDUM_FRIBOURG,
-            "geneve": CANTON_ADDENDUM_GENEVE,
-        }
-        canton_addendum = addenda.get(canton_key, "")
     return REPORT_SYSTEM_PROMPT_GENERIC.format(
         canton_name=canton_name,
         field_schema=field_schema,
-        canton_addendum=canton_addendum,
     )

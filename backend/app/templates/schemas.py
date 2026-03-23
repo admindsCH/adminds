@@ -81,7 +81,6 @@ class TemplateSchema(BaseModel):
     template_name: str
     fields: list[SchemaField]
     template_format: Literal["docx", "pdf"] = "docx"
-    canton_addendum: str = ""  # auto-generated semantic mapping text
     extracted_at: str  # ISO timestamp
 
     def to_prompt_schema(self) -> list[dict[str, Any]]:

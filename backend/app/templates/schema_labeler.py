@@ -81,7 +81,6 @@ async def label_slots(
             template_id="",
             template_name=template_name,
             fields=[],
-            canton_addendum="",
             extracted_at=datetime.now(timezone.utc).isoformat(),
         )
 
@@ -146,9 +145,6 @@ async def label_slots(
     # Ensure unique IDs
     _deduplicate_ids(fields)
 
-    # Generate the canton addendum
-    addendum = _generate_addendum(fields)
-
     logger.info(
         f"Labeled {len(fields)} fields across "
         f"{len(set(f.section for f in fields))} sections"
@@ -158,7 +154,6 @@ async def label_slots(
         template_id="",  # set by caller
         template_name=template_name,
         fields=fields,
-        canton_addendum=addendum,
         extracted_at=datetime.now(timezone.utc).isoformat(),
     )
 
@@ -196,37 +191,6 @@ def _build_labeling_prompt(
 
     return "\n".join(lines)
 
-
-# ── Addendum generator ───────────────────────────────────
-
-
-def _generate_addendum(fields: list[SchemaField]) -> str:
-    """Generate a semantic mapping text block from labeled fields.
-
-    Groups fields by mapped_rubrique and produces text in the same
-    format as the existing CANTON_ADDENDUM_FRIBOURG.
-    """
-    rubrique_map: dict[str, list[str]] = {}
-    for f in fields:
-        if f.mapped_rubrique:
-            rubrique_map.setdefault(f.mapped_rubrique, []).append(f.id)
-
-    if not rubrique_map:
-        return ""
-
-    lines = ["MAPPING SÉMANTIQUE (champs → rubriques du dossier patient):", ""]
-    for rubrique in RUBRIQUE_KEYS:
-        field_ids = rubrique_map.get(rubrique, [])
-        if field_ids:
-            display = rubrique.upper().replace("_", " ")
-            lines.append(f"{display}:")
-            for fid in field_ids:
-                field = next((f for f in fields if f.id == fid), None)
-                if field:
-                    lines.append(f"  - {fid} → {field.label}")
-            lines.append("")
-
-    return "\n".join(lines)
 
 
 # ── Helpers ──────────────────────────────────────────────
