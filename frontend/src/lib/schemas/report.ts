@@ -4,6 +4,7 @@ export interface FieldSchemaEntry {
   type: string;       // "text" | "date" | "checkbox" | "select_one" | "choice"
   label: string;
   section: string;
+  section_number?: string;  // e.g. "2.2" — extracted from template heading
   hint?: string;
   options?: string[];
 }

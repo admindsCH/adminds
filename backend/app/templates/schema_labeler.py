@@ -43,7 +43,8 @@ de rapport médical (.docx ou .pdf). Pour chaque champ, tu reçois:
 Ta tâche: pour CHAQUE champ, retourner un objet JSON avec:
 - "id": un identifiant snake_case unique et descriptif (ex: "diagnostic_principal", "date_derniere_consultation")
 - "label": un libellé humain en français (ex: "Diagnostic principal")
-- "section": le nom de la section du formulaire (ex: "informations_generales", "situation_medicale", "capacite_travail")
+- "section": le nom de la section du formulaire (ex: "Informations générales", "Situation médicale", "Capacité de travail")
+- "section_number": le numéro de la section tel qu'il apparaît dans le document (ex: "1", "2.2", "3.1"). Si le document n'a pas de numérotation visible, laisser une chaîne vide "".
 - "hint": une instruction courte pour l'IA qui remplira ce champ (ex: "Date au format DD.MM.YYYY", "Résumer les symptômes actuels")
 - "mapped_rubrique": la rubrique du dossier patient qui alimente ce champ, parmi:
   {rubriques}
@@ -55,7 +56,7 @@ IMPORTANT:
 - Pour les champs de type "choice" (grilles Oui/Non), l'id doit refléter la question de la ligne.
 - Sois concis dans les hints (max 100 caractères).
 
-Retourne un JSON: {{"fields": [...]}} où chaque élément a les clés: id, label, section, hint, mapped_rubrique.
+Retourne un JSON: {{"fields": [...]}} où chaque élément a les clés: id, label, section, section_number, hint, mapped_rubrique.
 L'ordre doit correspondre exactement à l'ordre des champs en entrée.
 """
 
@@ -122,6 +123,7 @@ async def label_slots(
                 "id": f"field_{i}",
                 "label": f"Champ {i}",
                 "section": "inconnu",
+                "section_number": "",
                 "hint": "",
                 "mapped_rubrique": None,
             }
@@ -134,6 +136,7 @@ async def label_slots(
                 field_type=raw.detected_field_type,
                 label=label_data.get("label", f"Champ {i}"),
                 section=label_data.get("section", "inconnu"),
+                section_number=label_data.get("section_number", ""),
                 hint=label_data.get("hint", ""),
                 options=raw.options,
                 original_text=raw.original_text,

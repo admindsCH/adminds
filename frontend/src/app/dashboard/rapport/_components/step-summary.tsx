@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { Subheading } from "@/components/heading";
 import { Text } from "@/components/text";
 import { Badge } from "@/components/badge";
+import { Button } from "@/components/button";
 import {
   CheckCircle2,
   Circle,
@@ -17,6 +18,8 @@ import {
   RotateCcw,
   Brain,
   Activity,
+  Plus,
+  Trash2,
 } from "lucide-react";
 import { motion, AnimatePresence, LayoutGroup } from "motion/react";
 import type { WizardDocument } from "@/lib/mock-data";
@@ -36,6 +39,8 @@ import { DossierChat } from "./dossier-chat";
 interface StepSummaryProps {
   docs: WizardDocument[];
   notes: string;
+  dateFrom: string;
+  dateTo: string;
   dossierId: string | null;
   dossier: PatientDossier | null;
   onDossierChange: (dossierId: string, dossier: PatientDossier) => void;
@@ -260,12 +265,41 @@ const subtaskVariants = {
   visible: { opacity: 1, x: 0, transition: { duration: 0.2 } },
 };
 
+// ── Date helpers (used for filtering) ─────────────────────
+
+function parseDocDate(raw: string | null | undefined): Date | null {
+  if (!raw) return null;
+  try {
+    const d = new Date(raw.length <= 7 ? raw + "-01T00:00:00" : raw + "T00:00:00");
+    return isNaN(d.getTime()) ? null : d;
+  } catch {
+    return null;
+  }
+}
+
 // ── Main component ───────────────────────────────────────
 
-export function StepSummary({ docs, notes, dossierId, dossier, onDossierChange }: StepSummaryProps) {
+export function StepSummary({ docs, notes, dateFrom, dateTo, dossierId, dossier, onDossierChange }: StepSummaryProps) {
   const [progressStep, setProgressStep] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [expandedRubriques, setExpandedRubriques] = useState<string[]>([]);
+
+  // ── Filter docs using date filter from Step 2 ───────────
+  const filteredDocs = useMemo(() => {
+    const doneDocs = docs.filter((d) => d.status === "done");
+    if (!dateFrom && !dateTo) return doneDocs;
+
+    const from = dateFrom ? new Date(dateFrom + "T00:00:00") : null;
+    const to = dateTo ? new Date(dateTo + "T23:59:59") : null;
+
+    return doneDocs.filter((d) => {
+      const docDate = parseDocDate(d.classification?.date);
+      if (!docDate) return true; // always include undated docs
+      if (from && docDate < from) return false;
+      if (to && docDate > to) return false;
+      return true;
+    });
+  }, [docs, dateFrom, dateTo]);
 
   const savePatch = useCallback(
     async (patch: PatientDossierPatch) => {
@@ -280,14 +314,14 @@ export function StepSummary({ docs, notes, dossierId, dossier, onDossierChange }
     [dossierId, onDossierChange],
   );
 
-  // ── Parse dossier on mount ──────────────────────────────
+  // ── Auto-parse dossier on mount ─────────────────────────
   const parseStarted = useRef(false);
 
   useEffect(() => {
     if (dossier) return;
     if (parseStarted.current) return;
 
-    const files = docs.filter((d) => d.status === "done").map((d) => d.file);
+    const files = filteredDocs.map((d) => d.file);
     if (files.length === 0) return;
 
     parseStarted.current = true;
@@ -555,7 +589,7 @@ function EditableInfoField({
 function EditableProseField({
   label,
   value,
-  color,
+  color: _color,
   onSave,
 }: {
   label: string;
@@ -696,53 +730,167 @@ function EditableTimelineItem({ entry, onSave }: { entry: TimelineEntry; onSave:
 // ── Diagnostics list (inside R02) ────────────────────────
 
 function DiagnosticsList({ items, onSave }: { items: Diagnostic[]; onSave: (items: Diagnostic[]) => void }) {
-  if (items.length === 0) return null;
-
   return (
     <motion.div variants={subtaskVariants} className="mt-2">
       <p className="mb-1.5 flex items-center gap-1.5 px-2 text-xs font-medium text-zinc-500">
         <Stethoscope className="h-3 w-3" />
         Diagnostics ({items.length})
       </p>
-      <ul className="space-y-1 px-2">
-        {items.map((d, i) => {
-          const badge = DIAG_TYPE_BADGE[d.type] ?? DIAG_TYPE_BADGE.inconnu;
-          return (
-            <li key={i} className="flex items-center gap-2 rounded-md border border-zinc-100 bg-white px-2.5 py-1.5">
-              <div className="min-w-0 flex-1">
-                <p className="text-xs font-medium text-zinc-800">{d.label}</p>
-                {d.code_cim && <p className="text-[10px] text-zinc-400">{d.code_cim}</p>}
-              </div>
-              <Badge color={badge.color} className="shrink-0 text-[10px]">{badge.label}</Badge>
-            </li>
-          );
-        })}
-      </ul>
+      <div className="space-y-1 px-2">
+        {items.map((d, i) => (
+          <EditableDiagnosticItem
+            key={i}
+            item={d}
+            onSave={(updated) => {
+              const next = [...items];
+              next[i] = updated;
+              onSave(next);
+            }}
+            onDelete={() => {
+              onSave(items.filter((_, idx) => idx !== i));
+            }}
+          />
+        ))}
+        <button
+          type="button"
+          onClick={() => onSave([...items, { label: "", code_cim: null, type: "inconnu" }])}
+          className="flex w-full items-center gap-1.5 rounded-md border border-dashed border-zinc-200 px-2.5 py-1.5 text-xs text-zinc-400 hover:border-zinc-300 hover:text-zinc-600"
+        >
+          <Plus className="h-3 w-3" />
+          Ajouter un diagnostic
+        </button>
+      </div>
     </motion.div>
+  );
+}
+
+function EditableDiagnosticItem({ item, onSave, onDelete }: { item: Diagnostic; onSave: (updated: Diagnostic) => void; onDelete: () => void }) {
+  const [editing, setEditing] = useState(false);
+  const [local, setLocal] = useState(item);
+
+  useEffect(() => { setLocal(item); }, [item]);
+
+  const commit = () => {
+    setEditing(false);
+    if (local.label) onSave(local);
+  };
+
+  if (editing) {
+    return (
+      <div className="rounded-md border border-zinc-200 bg-white p-2 space-y-1.5">
+        <input type="text" value={local.label} onChange={(e) => setLocal({ ...local, label: e.target.value })} placeholder="Diagnostic" className={INPUT_CLASS} />
+        <input type="text" value={local.code_cim ?? ""} onChange={(e) => setLocal({ ...local, code_cim: e.target.value || null })} placeholder="Code CIM (ex: F32.1)" className={INPUT_CLASS} />
+        <select
+          value={local.type}
+          onChange={(e) => setLocal({ ...local, type: e.target.value as Diagnostic["type"] })}
+          className={INPUT_CLASS}
+        >
+          <option value="incapacitant">Incapacitant</option>
+          <option value="sans_incidence">Sans incidence</option>
+          <option value="inconnu">Non déterminé</option>
+        </select>
+        <div className="flex gap-2">
+          <button type="button" onClick={commit} className="rounded-md bg-indigo-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-indigo-700">OK</button>
+          <button type="button" onClick={() => { setLocal(item); setEditing(false); }} className="rounded-md px-2.5 py-1 text-xs font-medium text-zinc-500 hover:bg-zinc-100">Annuler</button>
+        </div>
+      </div>
+    );
+  }
+
+  const badge = DIAG_TYPE_BADGE[item.type] ?? DIAG_TYPE_BADGE.inconnu;
+  return (
+    <div className="group flex cursor-pointer items-center gap-2 rounded-md border border-zinc-100 bg-white px-2.5 py-1.5 hover:border-zinc-200" onClick={() => setEditing(true)}>
+      <div className="min-w-0 flex-1">
+        <p className="text-xs font-medium text-zinc-800">{item.label || <span className="text-zinc-300">—</span>}</p>
+        {item.code_cim && <p className="text-[10px] text-zinc-400">{item.code_cim}</p>}
+      </div>
+      <Badge color={badge.color} className="shrink-0 text-[10px]">{badge.label}</Badge>
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); onDelete(); }}
+        className="shrink-0 rounded p-0.5 text-zinc-300 opacity-0 transition-opacity group-hover:opacity-100 hover:text-red-500"
+      >
+        <Trash2 className="h-3 w-3" />
+      </button>
+    </div>
   );
 }
 
 // ── Medications list (inside R03) ────────────────────────
 
 function MedicationsList({ items, onSave }: { items: Medication[]; onSave: (items: Medication[]) => void }) {
-  if (items.length === 0) return null;
-
   return (
     <motion.div variants={subtaskVariants} className="mt-2">
       <p className="mb-1.5 flex items-center gap-1.5 px-2 text-xs font-medium text-zinc-500">
         <Pill className="h-3 w-3" />
         Médication ({items.length})
       </p>
-      <ul className="space-y-0.5 px-2">
+      <div className="space-y-0.5 px-2">
         {items.map((m, i) => (
-          <li key={i} className="flex items-baseline gap-2 rounded-md bg-white px-2.5 py-1 text-xs">
-            <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-purple-400" />
-            <span className="font-medium text-zinc-800">{m.nom}</span>
-            {m.dosage && <span className="text-zinc-500">{m.dosage}</span>}
-            {m.date && <span className="ml-auto text-[10px] text-zinc-400">{formatDate(m.date)}</span>}
-          </li>
+          <EditableMedicationItem
+            key={i}
+            item={m}
+            onSave={(updated) => {
+              const next = [...items];
+              next[i] = updated;
+              onSave(next);
+            }}
+            onDelete={() => {
+              onSave(items.filter((_, idx) => idx !== i));
+            }}
+          />
         ))}
-      </ul>
+        <button
+          type="button"
+          onClick={() => onSave([...items, { nom: "", dosage: null, date: null }])}
+          className="flex w-full items-center gap-1.5 rounded-md border border-dashed border-zinc-200 px-2.5 py-1.5 text-xs text-zinc-400 hover:border-zinc-300 hover:text-zinc-600"
+        >
+          <Plus className="h-3 w-3" />
+          Ajouter un médicament
+        </button>
+      </div>
     </motion.div>
+  );
+}
+
+function EditableMedicationItem({ item, onSave, onDelete }: { item: Medication; onSave: (updated: Medication) => void; onDelete: () => void }) {
+  const [editing, setEditing] = useState(false);
+  const [local, setLocal] = useState(item);
+
+  useEffect(() => { setLocal(item); }, [item]);
+
+  const commit = () => {
+    setEditing(false);
+    if (local.nom) onSave(local);
+  };
+
+  if (editing) {
+    return (
+      <div className="rounded-md border border-zinc-200 bg-white p-2 space-y-1.5">
+        <input type="text" value={local.nom} onChange={(e) => setLocal({ ...local, nom: e.target.value })} placeholder="Nom du médicament" className={INPUT_CLASS} />
+        <input type="text" value={local.dosage ?? ""} onChange={(e) => setLocal({ ...local, dosage: e.target.value || null })} placeholder="Dosage (ex: 50mg)" className={INPUT_CLASS} />
+        <input type="text" value={local.date ?? ""} onChange={(e) => setLocal({ ...local, date: e.target.value || null })} placeholder="Date (YYYY-MM-DD)" className={INPUT_CLASS} />
+        <div className="flex gap-2">
+          <button type="button" onClick={commit} className="rounded-md bg-indigo-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-indigo-700">OK</button>
+          <button type="button" onClick={() => { setLocal(item); setEditing(false); }} className="rounded-md px-2.5 py-1 text-xs font-medium text-zinc-500 hover:bg-zinc-100">Annuler</button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="group flex cursor-pointer items-baseline gap-2 rounded-md bg-white px-2.5 py-1 text-xs hover:bg-zinc-50" onClick={() => setEditing(true)}>
+      <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-purple-400" />
+      <span className="font-medium text-zinc-800">{item.nom || <span className="text-zinc-300">—</span>}</span>
+      {item.dosage && <span className="text-zinc-500">{item.dosage}</span>}
+      {item.date && <span className="ml-auto text-[10px] text-zinc-400">{formatDate(item.date)}</span>}
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); onDelete(); }}
+        className="shrink-0 rounded p-0.5 text-zinc-300 opacity-0 transition-opacity group-hover:opacity-100 hover:text-red-500"
+      >
+        <Trash2 className="h-3 w-3" />
+      </button>
+    </div>
   );
 }

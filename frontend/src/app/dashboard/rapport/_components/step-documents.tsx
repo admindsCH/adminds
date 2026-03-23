@@ -47,13 +47,17 @@ interface StepDocumentsProps {
   onDocsChange: React.Dispatch<React.SetStateAction<WizardDocument[]>>;
   notes: string;
   onNotesChange: React.Dispatch<React.SetStateAction<string>>;
+  dateFrom: string;
+  dateTo: string;
+  onDateFromChange: (v: string) => void;
+  onDateToChange: (v: string) => void;
 }
 
 /**
- * Step 1: drag-and-drop document upload with simulated classification.
+ * Step 2: drag-and-drop document upload with classification + date filter.
  * The parent owns `docs` state because it needs it for `canNext` logic.
  */
-export function StepDocuments({ docs, onDocsChange, notes, onNotesChange }: StepDocumentsProps) {
+export function StepDocuments({ docs, onDocsChange, notes, onNotesChange, dateFrom, dateTo, onDateFromChange, onDateToChange }: StepDocumentsProps) {
   const { dragging, fileRef, addFiles, onDrop, onDragOver, onDragLeave } =
     useFileUpload(onDocsChange);
 
@@ -63,8 +67,43 @@ export function StepDocuments({ docs, onDocsChange, notes, onNotesChange }: Step
     );
   }, [onDocsChange]);
 
+  const INPUT_DATE =
+    "rounded-md border border-zinc-200 bg-white px-2.5 py-1 text-sm text-zinc-700 focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-400";
+
   return (
     <div>
+      {/* Date filter — discreet row at the top */}
+      <div className="mb-6 flex items-center gap-3 text-sm text-zinc-500">
+        <span className="text-xs font-medium text-zinc-400">Période :</span>
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs text-zinc-400">Du</span>
+          <input
+            type="date"
+            value={dateFrom}
+            onChange={(e) => onDateFromChange(e.target.value)}
+            className={INPUT_DATE}
+          />
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs text-zinc-400">Au</span>
+          <input
+            type="date"
+            value={dateTo}
+            onChange={(e) => onDateToChange(e.target.value)}
+            className={INPUT_DATE}
+          />
+        </div>
+        {(dateFrom || dateTo) && (
+          <button
+            type="button"
+            onClick={() => { onDateFromChange(""); onDateToChange(""); }}
+            className="text-xs text-zinc-400 hover:text-zinc-600"
+          >
+            Effacer
+          </button>
+        )}
+      </div>
+
       {/* Drop zone — big, inviting, entire area clickable */}
       <div
         role="button"

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useUser } from "@clerk/nextjs";
 import { Heading } from "@/components/heading";
 import { Text } from "@/components/text";
@@ -47,10 +47,31 @@ export default function RapportPage() {
   // Step 1: uploaded documents + notes
   const [docs, setDocs] = useState<WizardDocument[]>([]);
   const [notes, setNotes] = useState("");
+  // Date filter (set on Step 2, used on Step 3 for parsing)
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
 
   // Step 2: parsed dossier
   const [dossierId, setDossierId] = useState<string | null>(null);
   const [dossier, setDossier] = useState<PatientDossier | null>(null);
+  // Track which doc IDs were used to build the current dossier
+  const parsedDocIdsRef = useRef<string | null>(null);
+
+  // Reset dossier when documents change (added/removed) so Step 2 re-parses
+  useEffect(() => {
+    const doneDocIds = docs
+      .filter((d) => d.status === "done")
+      .map((d) => d.id)
+      .sort()
+      .join(",");
+    // Skip on first render or when no dossier exists yet
+    if (!dossier || !parsedDocIdsRef.current) return;
+    if (doneDocIds !== parsedDocIdsRef.current) {
+      setDossier(null);
+      setDossierId(null);
+      parsedDocIdsRef.current = null;
+    }
+  }, [docs]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Sync canton from Clerk metadata when it loads
   useEffect(() => {
@@ -99,17 +120,29 @@ export default function RapportPage() {
             onDocsChange={setDocs}
             notes={notes}
             onNotesChange={setNotes}
+            dateFrom={dateFrom}
+            dateTo={dateTo}
+            onDateFromChange={setDateFrom}
+            onDateToChange={setDateTo}
           />
         )}
         {step === 2 && (
           <StepSummary
             docs={docs}
             notes={notes}
+            dateFrom={dateFrom}
+            dateTo={dateTo}
             dossierId={dossierId}
             dossier={dossier}
             onDossierChange={(id, d) => {
               setDossierId(id);
               setDossier(d);
+              // Snapshot which docs were used for this dossier
+              parsedDocIdsRef.current = docs
+                .filter((doc) => doc.status === "done")
+                .map((doc) => doc.id)
+                .sort()
+                .join(",");
             }}
           />
         )}

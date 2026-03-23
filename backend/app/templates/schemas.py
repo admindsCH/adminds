@@ -64,6 +64,7 @@ class SchemaField(BaseModel):
     field_type: FieldType
     label: str  # human-readable label (French)
     section: str  # section grouping
+    section_number: str = ""  # e.g. "2.2" — extracted from the template heading
     hint: str = ""  # guidance for the content-generation LLM
     options: list[str] = Field(default_factory=list)
     original_text: str | None = None
@@ -97,6 +98,8 @@ class TemplateSchema(BaseModel):
                 "label": f.label,
                 "section": f.section,
             }
+            if f.section_number:
+                entry["section_number"] = f.section_number
             if f.hint:
                 entry["hint"] = f.hint
             if f.options:

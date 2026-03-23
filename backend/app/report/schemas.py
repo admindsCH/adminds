@@ -22,6 +22,7 @@ class FieldSchemaEntry(BaseModel):
     type: str
     label: str
     section: str
+    section_number: str = ""
     hint: str = ""
     options: list[str] = []
 

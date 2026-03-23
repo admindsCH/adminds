@@ -121,6 +121,7 @@ interface EditorField {
 interface EditorSection {
   id: string;
   title: string;
+  sectionNumber: string;
   fields: EditorField[];
 }
 
@@ -128,23 +129,26 @@ function buildEditorSections(
   schema: FieldSchemaEntry[],
   values: Record<string, string | boolean>,
 ): EditorSection[] {
-  const sectionMap = new Map<string, EditorField[]>();
+  const sectionMap = new Map<string, { fields: EditorField[]; sectionNumber: string }>();
 
   for (const entry of schema) {
     if (entry.type === "checkbox") continue;
-    if (!sectionMap.has(entry.section)) sectionMap.set(entry.section, []);
+    if (!sectionMap.has(entry.section)) {
+      sectionMap.set(entry.section, { fields: [], sectionNumber: entry.section_number ?? "" });
+    }
     const val = values[entry.id];
     const isLong = typeof val === "string" && (val.length > 80 || val.includes("\n"));
-    sectionMap.get(entry.section)!.push({
+    sectionMap.get(entry.section)!.fields.push({
       id: entry.id,
       label: entry.label,
       type: entry.type === "date" ? "date" : isLong ? "multiline" : "text",
     });
   }
 
-  return Array.from(sectionMap.entries()).map(([title, fields], i) => ({
+  return Array.from(sectionMap.entries()).map(([title, { fields, sectionNumber }], i) => ({
     id: `section_${i}`,
     title,
+    sectionNumber,
     fields,
   }));
 }
@@ -173,7 +177,10 @@ function EditorSectionPanel({
         onClick={onToggle}
         className="flex w-full items-center justify-between px-4 py-3 text-left"
       >
-        <span className="text-sm font-semibold text-zinc-900">{section.title}</span>
+        <span className="text-sm font-semibold text-zinc-900">
+          {section.sectionNumber && <span className="text-indigo-600 mr-1.5">{section.sectionNumber}</span>}
+          {section.title}
+        </span>
         <ChevronIcon
           className={clsx("h-4 w-4 text-zinc-400 transition-transform", !isCollapsed && "rotate-180")}
         />
@@ -211,7 +218,7 @@ function EditorSectionPanel({
   );
 }
 
-// ── Document Detail View (docx preview + inline editor) ─
+// ── Document Detail View (docx preview + side panel editor) ─
 
 function DocumentDetailView({
   item,
@@ -290,7 +297,6 @@ function DocumentDetailView({
       const res = await api.updateReport(dossierId, canton, editedValues, item.template.id);
       const blob = base64ToBlob(res.docx_base64);
       await renderPreview(blob);
-      setShowEditor(false);
     } catch (e) {
       setUpdateError(e instanceof Error ? e.message : "Erreur lors de la mise à jour");
     } finally {
@@ -350,17 +356,10 @@ function DocumentDetailView({
         </div>
         <div className="flex gap-2">
           {hasEditor && (
-            showEditor ? (
-              <Button outline onClick={() => setShowEditor(false)}>
-                <ArrowLeftIcon className="h-4 w-4" />
-                Voir le document
-              </Button>
-            ) : (
-              <Button outline onClick={() => setShowEditor(true)}>
-                <PencilIcon className="h-4 w-4" />
-                Modifier
-              </Button>
-            )
+            <Button outline onClick={() => setShowEditor(!showEditor)}>
+              <PencilIcon className="h-4 w-4" />
+              {showEditor ? "Fermer" : "Modifier"}
+            </Button>
           )}
           <Button outline onClick={downloadPdf}>Télécharger PDF</Button>
           <Button color="indigo" onClick={downloadDocx}>Télécharger .docx</Button>
@@ -374,44 +373,65 @@ function DocumentDetailView({
         </div>
       )}
 
-      {/* Editor panel (inline, collapsible below header) */}
-      {hasEditor && showEditor && (
-        <div className="mt-4 rounded-xl border border-zinc-200 bg-zinc-50/50 p-4">
-          <div className="mb-3 flex items-center justify-between">
-            <span className="text-sm font-semibold text-zinc-900">Modifier le rapport</span>
-            <button
-              type="button"
-              onClick={() => setShowEditor(false)}
-              className="rounded-md p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600"
-            >
-              <XIcon className="h-4 w-4" />
-            </button>
-          </div>
-          <div className="flex flex-col gap-3">
-            {editorSections.map((section) => (
-              <EditorSectionPanel
-                key={section.id}
-                section={section}
-                editedValues={editedValues}
-                onFieldChange={updateField}
-                isCollapsed={collapsedSections.has(section.id)}
-                onToggle={() => toggleSection(section.id)}
-                onUpdate={handleUpdate}
-              />
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Docx preview */}
+      {/* Docx preview — always full width */}
       <div className="mt-6 overflow-hidden rounded-lg border border-zinc-200 bg-white">
         {updating && (
           <div className="flex items-center justify-center py-32">
+            <SpinnerIcon className="mr-2 h-4 w-4 text-indigo-500" />
             <Text>Mise à jour du document...</Text>
           </div>
         )}
         <div ref={previewRef} className="docx-preview" />
       </div>
+
+      {/* Slide-over panel from right */}
+      {hasEditor && showEditor && (
+        <>
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 z-40 bg-black/20 transition-opacity"
+            onClick={() => setShowEditor(false)}
+          />
+          {/* Panel */}
+          <div className="fixed inset-y-0 right-0 z-50 flex w-full max-w-xl flex-col border-l border-zinc-200 bg-white shadow-xl">
+            {/* Panel header */}
+            <div className="flex items-center justify-between border-b border-zinc-200 px-5 py-4">
+              <span className="text-sm font-semibold text-zinc-900">Modifier le rapport</span>
+              <button
+                type="button"
+                onClick={() => setShowEditor(false)}
+                className="rounded-md p-1.5 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600"
+              >
+                <XIcon className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Scrollable sections */}
+            <div className="flex-1 overflow-y-auto p-5">
+              <div className="flex flex-col gap-3">
+                {editorSections.map((section) => (
+                  <EditorSectionPanel
+                    key={section.id}
+                    section={section}
+                    editedValues={editedValues}
+                    onFieldChange={updateField}
+                    isCollapsed={collapsedSections.has(section.id)}
+                    onToggle={() => toggleSection(section.id)}
+                    onUpdate={handleUpdate}
+                  />
+                ))}
+              </div>
+            </div>
+
+            {/* Footer with global update button */}
+            <div className="border-t border-zinc-200 px-5 py-3 flex justify-end">
+              <Button color="indigo" onClick={handleUpdate} disabled={updating}>
+                {updating ? "Mise à jour..." : "Mettre à jour le document"}
+              </Button>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
