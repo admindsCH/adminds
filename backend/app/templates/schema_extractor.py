@@ -350,6 +350,11 @@ def _extract_table_slots(root: etree._Element) -> list[RawSlot]:
         if not rows:
             continue
 
+        # Skip tables that contain form fields — those are header/metadata
+        # tables already handled by _extract_form_fields
+        if table.findall(f".//{W}ffData"):
+            continue
+
         header_texts = _get_row_texts(rows[0])
         choice_columns = _detect_choice_grid(header_texts)
         table_context = _get_preceding_text(table, max_chars=100)
