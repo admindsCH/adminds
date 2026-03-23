@@ -11,7 +11,8 @@ class GenerateReportRequest(BaseModel):
     """Request body for POST /api/generate-report."""
 
     dossier_id: str
-    canton: Literal["fribourg", "geneve"]
+    canton: Literal["fribourg", "geneve"] = "fribourg"
+    template_id: str | None = None  # generic engine — overrides canton
 
 
 class FieldSchemaEntry(BaseModel):
@@ -45,7 +46,8 @@ class UpdateReportRequest(BaseModel):
     """
 
     dossier_id: str
-    canton: Literal["fribourg", "geneve"]
+    canton: Literal["fribourg", "geneve"] = "fribourg"
+    template_id: str | None = None  # generic engine — overrides canton
     field_values: dict[str, Any]
 
 

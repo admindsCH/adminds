@@ -9,6 +9,7 @@ from loguru import logger
 from app.classification.routes import router as classification_router
 from app.config import load_secrets_from_keyvault, settings
 from app.report.routes import router as report_router
+from app.templates.routes import router as templates_router
 from app.routers import hello
 from app.routers.test_doc_intelligence import router as test_doc_intelligence_router
 from app.routers.test_openai import router as test_openai_router
@@ -90,5 +91,6 @@ async def health() -> HealthResponse:
 app.include_router(hello.router, prefix="/api")
 app.include_router(classification_router, prefix="/api")
 app.include_router(report_router, prefix="/api")
+app.include_router(templates_router, prefix="/api")
 app.include_router(test_doc_intelligence_router, prefix="/api")
 app.include_router(test_openai_router, prefix="/api")

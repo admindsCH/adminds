@@ -22,7 +22,9 @@ async def generate_report(request: GenerateReportRequest) -> GenerateReportRespo
     Returns field_values (LLM output), field_schema (canton-specific field
     definitions), and the filled docx as base64.
     """
-    result = await services.generate_report(request.dossier_id, request.canton)
+    result = await services.generate_report(
+        request.dossier_id, request.canton, request.template_id
+    )
     return GenerateReportResponse(**result)
 
 
@@ -33,6 +35,6 @@ async def update_report(request: UpdateReportRequest) -> UpdateReportResponse:
     Returns the updated docx as base64.
     """
     result = await services.update_report(
-        request.dossier_id, request.canton, request.field_values
+        request.dossier_id, request.canton, request.field_values, request.template_id
     )
     return UpdateReportResponse(**result)

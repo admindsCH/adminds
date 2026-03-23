@@ -1,6 +1,6 @@
 [project]
 name = "adminds-api"
-version = "0.1.2"
+version = "1.0.0"
 description = "Adminds backend API"
 requires-python = ">=3.12"
 dependencies = [
@@ -14,10 +14,12 @@ dependencies = [
     "langchain>=1.0.0",
     "langchain-openai>=1.1.0",
     "loguru>=0.7.0",
-    "pymupdf>=1.25.0",
+    "liteparse>=0.1.0",
     "azure-identity>=1.17.0",
     "azure-keyvault-secrets>=4.8.0",
     "azure-ai-documentintelligence>=1.0.0",
+    "azure-storage-blob>=12.20.0",
+    "pymupdf>=1.25.0",
 ]
 
 [project.optional-dependencies]
@@ -32,7 +34,7 @@ dev = [
 include = ["app*"]
 
 [tool.bumpversion]
-current_version = "0.1.2"
+current_version = "1.0.0"
 commit = true
 tag = true
 tag_name = "v{new_version}"

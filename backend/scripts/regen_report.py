@@ -23,8 +23,12 @@ from app.report.services import generate_report  # noqa: E402
 
 
 async def main() -> None:
-    parser = argparse.ArgumentParser(description="Re-generate report from existing dossier")
-    parser.add_argument("dossier_id", help="UUID of the dossier (folder name under data/dossiers/)")
+    parser = argparse.ArgumentParser(
+        description="Re-generate report from existing dossier"
+    )
+    parser.add_argument(
+        "dossier_id", help="UUID of the dossier (folder name under data/dossiers/)"
+    )
     parser.add_argument("--canton", default="fribourg", choices=["fribourg", "geneve"])
     args = parser.parse_args()
 

@@ -11,7 +11,7 @@ from loguru import logger
 
 from app.classification import store
 from app.classification.schemas import PatientDossier
-from app.report.constants import REPORT_SYSTEM_PROMPT
+from app.report.constants import build_system_prompt
 from app.services.azure_openai import get_model
 from app.services.docx_filler import fill_fribourg_template
 from app.services.docx_filler_geneve import fill_geneve_template
@@ -26,8 +26,6 @@ from app.services.geneve_field_map import (
 TEMPLATES_DIR = Path(__file__).resolve().parent.parent.parent / "templates"
 
 
-
-
 def _build_patient_context(dossier: PatientDossier) -> str:
     """Serialize the dossier data into a readable text block for the LLM.
 
@@ -35,12 +33,14 @@ def _build_patient_context(dossier: PatientDossier) -> str:
     """
     parts: list[str] = []
 
+    # 1. Raw content — source of truth
     if dossier.raw_content:
         parts.append(
             "RAW_CONTENT (dossier patient brut — source de vérité):\n\n"
             + dossier.raw_content
         )
 
+    # 2. Patient info
     pi = dossier.patient_info
     info_lines = []
     if pi.age is not None:
@@ -54,29 +54,39 @@ def _build_patient_context(dossier: PatientDossier) -> str:
     if info_lines:
         parts.append("INFORMATIONS PATIENT:\n" + "\n".join(info_lines))
 
-    if dossier.diagnostics:
-        diag_lines = []
-        for d in dossier.diagnostics:
-            code = f" ({d.code_cim})" if d.code_cim else ""
-            diag_lines.append(f"- {d.label}{code} [{d.type}]")
-        parts.append("DIAGNOSTICS:\n" + "\n".join(diag_lines))
+    # 3. Rubriques — structured clinical data (prose + structured lists)
+    rub = dossier.rubriques
+    rubrique_names = {
+        "r01_historique": "R01 HISTORIQUE",
+        "r02_clinique": "R02 CLINIQUE",
+        "r03_traitement": "R03 TRAITEMENT",
+        "r04_professionnel": "R04 PROFESSIONNEL",
+        "r05_capacite_travail": "R05 CAPACITÉ TRAVAIL",
+        "r06_readaptation": "R06 RÉADAPTATION",
+        "r07_freins_cognition": "R07 FREINS & COGNITION",
+        "r08_activites": "R08 ACTIVITÉS",
+    }
+    for field_name, display_name in rubrique_names.items():
+        rubrique = getattr(rub, field_name)
+        lines = []
+        for sub_field, value in rubrique.model_dump().items():
+            if not value:
+                continue
+            label = sub_field.replace("_", " ").capitalize()
+            if isinstance(value, str):
+                lines.append(f"  {label}: {value}")
+            elif isinstance(value, list) and value:
+                lines.append(f"  {label}:")
+                for item in value:
+                    if isinstance(item, dict):
+                        summary = ", ".join(
+                            f"{k}: {v}" for k, v in item.items() if v is not None
+                        )
+                        lines.append(f"    - {summary}")
+        if lines:
+            parts.append(f"{display_name}:\n" + "\n".join(lines))
 
-    if dossier.medications:
-        med_lines = []
-        for m in dossier.medications:
-            dosage = f" {m.dosage}" if m.dosage else ""
-            date = f" (depuis {m.date})" if m.date else ""
-            med_lines.append(f"- {m.nom}{dosage}{date}")
-        parts.append("MÉDICATION:\n" + "\n".join(med_lines))
-
-    if dossier.timeline:
-        tl_lines = []
-        for entry in dossier.timeline:
-            date = entry.date or "date inconnue"
-            source = f" — {entry.source}" if entry.source else ""
-            tl_lines.append(f"[{date}] {entry.title}{source}: {entry.summary}")
-        parts.append("CHRONOLOGIE:\n" + "\n".join(tl_lines))
-
+    # 5. Notes
     if dossier.notes:
         parts.append(f"NOTES DU MÉDECIN TRAITANT:\n{dossier.notes}")
 
@@ -106,11 +116,15 @@ def _fill_template(
         return fill_geneve_template(template_path, field_values)
 
 
-async def generate_report(dossier_id: str, canton: str) -> dict[str, Any]:
+async def generate_report(
+    dossier_id: str,
+    canton: str,
+    template_id: str | None = None,
+) -> dict[str, Any]:
     """Generate a filled .docx report from a stored dossier.
 
-    Returns a dict with field_values, field_schema, and docx_base64
-    so the frontend can populate the editor and render the preview.
+    If template_id is provided, uses the generic template engine.
+    Otherwise, falls back to the legacy canton-specific path.
     """
     # 1. Fetch dossier
     dossier = store.get_dossier(dossier_id)
@@ -120,21 +134,51 @@ async def generate_report(dossier_id: str, canton: str) -> dict[str, Any]:
     # 2. Build patient context
     patient_context = _build_patient_context(dossier)
 
-    # 3. Get canton-specific field schema and template path
-    field_schema, template_path, canton_name = _get_canton_config(canton)
+    # ── Generic template path ────────────────────────────
+    if template_id:
+        return await _generate_with_template(dossier_id, template_id, patient_context)
 
-    # 4. Format the system prompt with the field schema
-    system_prompt = REPORT_SYSTEM_PROMPT.format(
-        canton_name=canton_name,
-        field_schema=json.dumps(field_schema, ensure_ascii=False, indent=2),
+    # ── Legacy canton path ───────────────────────────────
+    return await _generate_with_canton(dossier_id, canton, patient_context)
+
+
+async def _generate_with_template(
+    dossier_id: str,
+    template_id: str,
+    patient_context: str,
+) -> dict[str, Any]:
+    """Generate report using the generic template engine."""
+    from app.services import blob_storage
+    from app.templates.generic_filler import fill_template
+    from app.templates.services import get_schema
+
+    # Load schema
+    schema = get_schema(template_id)
+    if schema is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Schema non trouvé pour ce template. Lancez l'extraction d'abord.",
+        )
+
+    # Load template bytes
+    template_bytes = blob_storage.download_template(template_id)
+
+    # Build prompt schema (strip positions)
+    prompt_schema = schema.to_prompt_schema()
+
+    # Build system prompt with dynamic addendum
+    system_prompt = build_system_prompt(
+        canton_name=schema.template_name,
+        field_schema=json.dumps(prompt_schema, ensure_ascii=False, indent=2),
+        canton_addendum=schema.canton_addendum,
     )
 
     logger.info(
-        f"Generating report: canton={canton}, dossier_id={dossier_id}, "
-        f"{len(field_schema)} fields in schema"
+        f"Generating report: template_id={template_id}, "
+        f"dossier_id={dossier_id}, {len(prompt_schema)} fields"
     )
 
-    # 5. Call GPT-4o in JSON mode
+    # Call LLM
     model = get_model(model_kwargs={"response_format": {"type": "json_object"}})
     response = await model.ainvoke(
         [
@@ -143,23 +187,64 @@ async def generate_report(dossier_id: str, canton: str) -> dict[str, Any]:
         ]
     )
 
-    # Parse the JSON response into a flat dict
     field_values: dict[str, Any] = json.loads(response.content)
-
-    # Remove null values — the fillers skip missing keys
     field_values = {k: v for k, v in field_values.items() if v is not None}
 
-    logger.info(f"LLM returned {len(field_values)} field values for {canton} report")
+    logger.info(f"LLM returned {len(field_values)} field values")
 
-    # 6. Fill the template
-    docx_bytes = _fill_template(canton, template_path, field_values)
+    # Fill template
+    docx_bytes = fill_template(template_bytes, schema, field_values)
 
-    # 7. Persist field values and docx to disk
+    # Persist
     store.save_field_values(dossier_id, field_values)
     report_path = store.save_report(dossier_id, docx_bytes)
     logger.info(f"Report generated: {len(docx_bytes)} bytes, saved to {report_path}")
 
-    # 8. Return JSON with field_values, schema, and base64-encoded docx
+    return {
+        "field_values": field_values,
+        "field_schema": prompt_schema,
+        "docx_base64": base64.b64encode(docx_bytes).decode("ascii"),
+    }
+
+
+async def _generate_with_canton(
+    dossier_id: str,
+    canton: str,
+    patient_context: str,
+) -> dict[str, Any]:
+    """Generate report using the legacy canton-specific path."""
+    field_schema, template_path, canton_name = _get_canton_config(canton)
+
+    system_prompt = build_system_prompt(
+        canton_name=canton_name,
+        field_schema=json.dumps(field_schema, ensure_ascii=False, indent=2),
+        canton_key=canton,
+    )
+
+    logger.info(
+        f"Generating report: canton={canton}, dossier_id={dossier_id}, "
+        f"{len(field_schema)} fields in schema"
+    )
+
+    model = get_model(model_kwargs={"response_format": {"type": "json_object"}})
+    response = await model.ainvoke(
+        [
+            SystemMessage(content=system_prompt),
+            HumanMessage(content=patient_context),
+        ]
+    )
+
+    field_values: dict[str, Any] = json.loads(response.content)
+    field_values = {k: v for k, v in field_values.items() if v is not None}
+
+    logger.info(f"LLM returned {len(field_values)} field values for {canton} report")
+
+    docx_bytes = _fill_template(canton, template_path, field_values)
+
+    store.save_field_values(dossier_id, field_values)
+    report_path = store.save_report(dossier_id, docx_bytes)
+    logger.info(f"Report generated: {len(docx_bytes)} bytes, saved to {report_path}")
+
     return {
         "field_values": field_values,
         "field_schema": field_schema,
@@ -168,27 +253,36 @@ async def generate_report(dossier_id: str, canton: str) -> dict[str, Any]:
 
 
 async def update_report(
-    dossier_id: str, canton: str, field_values: dict[str, Any]
+    dossier_id: str,
+    canton: str,
+    field_values: dict[str, Any],
+    template_id: str | None = None,
 ) -> dict[str, Any]:
     """Re-fill the docx template with user-edited field values.
 
     Saves the updated field values and docx to disk, then returns
     the new docx as base64.
     """
-    # Validate the dossier exists
     if store.get_dossier(dossier_id) is None:
         raise HTTPException(status_code=404, detail="Dossier introuvable")
 
-    # Get canton template path (we don't need field_schema here)
-    _, template_path, _ = _get_canton_config(canton)
-
-    # Remove null values
     field_values = {k: v for k, v in field_values.items() if v is not None}
 
-    # Fill the template with edited values
-    docx_bytes = _fill_template(canton, template_path, field_values)
+    if template_id:
+        from app.services import blob_storage
+        from app.templates.generic_filler import fill_template
+        from app.templates.services import get_schema
 
-    # Persist
+        schema = get_schema(template_id)
+        if schema is None:
+            raise HTTPException(status_code=400, detail="Schema non trouvé")
+
+        template_bytes = blob_storage.download_template(template_id)
+        docx_bytes = fill_template(template_bytes, schema, field_values)
+    else:
+        _, template_path, _ = _get_canton_config(canton)
+        docx_bytes = _fill_template(canton, template_path, field_values)
+
     store.save_field_values(dossier_id, field_values)
     report_path = store.save_report(dossier_id, docx_bytes)
     logger.info(f"Report updated: {len(docx_bytes)} bytes, saved to {report_path}")

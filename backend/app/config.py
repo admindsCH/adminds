@@ -9,11 +9,14 @@ class Settings(BaseSettings):
     azure_openai_api_key: str = ""
     azure_openai_endpoint: str = ""
     azure_openai_api_version: str = "2024-12-01-preview"
-    azure_openai_deployment: str = "gpt-5.2"
+    azure_openai_deployment: str = "gpt-4o"
 
     # Azure Document Intelligence
     azure_document_intelligence_endpoint: str = ""
     azure_document_intelligence_key: str = ""
+
+    # Azure Blob Storage
+    azure_storage_connection_string: str = ""
 
     azure_keyvault_url: str = ""
 
@@ -46,6 +49,7 @@ def load_secrets_from_keyvault() -> None:
     secret_map = {
         "azure-openai-api-key": "azure_openai_api_key",
         "azure-document-intelligence-key": "azure_document_intelligence_key",
+        "azure-storage-connection-string": "azure_storage_connection_string",
     }
 
     for secret_name, attr in secret_map.items():

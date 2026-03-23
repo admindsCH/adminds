@@ -1,48 +1,43 @@
 from __future__ import annotations
 
-import asyncio
-
-import fitz
 from fastapi import UploadFile
 from langchain_core.messages import HumanMessage, SystemMessage
 from loguru import logger
 
 from app.classification import crud
-from app.classification.constants import (
-    CLASSIFICATION_SYSTEM_PROMPT,
-    DOSSIER_SYSTEM_PROMPT,
-)
-from app.classification.helpers import file_to_content_blocks
+from app.classification.constants import CLASSIFICATION_SYSTEM_PROMPT
+from app.classification.helpers import extract_text
 from app.classification.schemas import (
     ClassifiedDocument,
     DocumentClassification,
     DossierResponse,
     PatientDossier,
     PatientDossierPatch,
-    PatientInfo,
-    RapportAiFields,
 )
+from app.rubriques.extraction import extract_dossier
 from app.services.azure_openai import get_model
 
-_MAX_IMAGES_PER_CHUNK = 6
+
+# ---------------------------------------------------------------------------
+# Step 1 — Classification
+# ---------------------------------------------------------------------------
 
 
 async def classify_document(filename: str, file_bytes: bytes) -> ClassifiedDocument:
     """Classify a single file (category + summary + author).
 
-    Converts the file to content blocks, calls GPT-4o with structured output,
+    Extracts text via LiteParse, sends it to GPT with structured output,
     returns the classification.
     """
-    # Only send the first 2 pages
-    content_blocks = file_to_content_blocks(filename, file_bytes, max_pages=2)
-    # Bind structured output to DocumentClassification for this call only.
+    text = extract_text(filename, file_bytes)
+
     structured = get_model().with_structured_output(DocumentClassification)
 
-    logger.info(f"Classifying '{filename}' ({len(content_blocks)} block(s))...")
+    logger.info(f"Classifying '{filename}' ({len(text)} chars)...")
     classification = await structured.ainvoke(
         [
             SystemMessage(content=CLASSIFICATION_SYSTEM_PROMPT),
-            HumanMessage(content=content_blocks),
+            HumanMessage(content=f"Document: {filename}\n\n{text}"),
         ]
     )
     logger.info(f"Classified '{filename}' → {classification.category}")
@@ -69,7 +64,7 @@ async def classify_documents(files: list[UploadFile]) -> list[ClassifiedDocument
                         date=None,
                         author_type="inconnu",
                         summary=f"Erreur: {e}",
-                        rapport_ai_fields=[],
+                        rubriques=[],
                     ),
                 )
             )
@@ -77,189 +72,42 @@ async def classify_documents(files: list[UploadFile]) -> list[ClassifiedDocument
     return results
 
 
-def _chunk_blocks(blocks: list[dict], max_images: int) -> list[list[dict]]:
-    """Split content blocks into chunks of at most `max_images` image blocks."""
-    image_count = sum(1 for b in blocks if b.get("type") == "image_url")
-    if image_count <= max_images:
-        return [blocks]
-
-    chunks: list[list[dict]] = []
-    current: list[dict] = []
-    current_images = 0
-
-    for block in blocks:
-        is_image = block.get("type") == "image_url"
-        # Start a new chunk when we'd exceed the limit.
-        if is_image and current_images >= max_images:
-            chunks.append(current)
-            current = []
-            current_images = 0
-        current.append(block)
-        if is_image:
-            current_images += 1
-
-    if current:
-        chunks.append(current)
-
-    return chunks
-
-
-def _merge_dossiers(partials: list[PatientDossier]) -> PatientDossier:
-    """Merge multiple partial PatientDossier results into one."""
-    if len(partials) == 1:
-        return partials[0]
-
-    # --- patient_info: first non-null value for each field ---
-    merged_info = partials[0].patient_info.model_dump()
-    for p in partials[1:]:
-        for key, val in p.patient_info.model_dump().items():
-            if merged_info.get(key) is None and val is not None:
-                merged_info[key] = val
-
-    # --- timeline: deduplicate by (date, title) ---
-    seen_tl: set[tuple[str | None, str]] = set()
-    timeline = []
-    for p in partials:
-        for entry in p.timeline:
-            key = (entry.date, entry.title)
-            if key not in seen_tl:
-                seen_tl.add(key)
-                timeline.append(entry)
-
-    # --- medications: deduplicate by lowercase name ---
-    seen_med: set[str] = set()
-    medications = []
-    for p in partials:
-        for med in p.medications:
-            key = med.nom.lower().strip()
-            if key not in seen_med:
-                seen_med.add(key)
-                medications.append(med)
-
-    # --- diagnostics: deduplicate by (label, code_cim) ---
-    seen_diag: set[tuple[str, str | None]] = set()
-    diagnostics = []
-    for p in partials:
-        for d in p.diagnostics:
-            key = (d.label.lower().strip(), d.code_cim)
-            if key not in seen_diag:
-                seen_diag.add(key)
-                diagnostics.append(d)
-
-    # --- rapport_ai_fields: keep the longest non-null value per field ---
-    merged_raf: dict[str, str | None] = {}
-    for p in partials:
-        for key, val in p.rapport_ai_fields.model_dump().items():
-            existing = merged_raf.get(key)
-            if val is not None and (existing is None or len(val) > len(existing)):
-                merged_raf[key] = val
-
-    # --- notes: concatenate ---
-    notes_parts = [p.notes for p in partials if p.notes]
-    merged_notes = "\n\n".join(notes_parts) if notes_parts else None
-
-    return PatientDossier(
-        patient_info=PatientInfo(**merged_info),
-        timeline=timeline,
-        medications=medications,
-        diagnostics=diagnostics,
-        rapport_ai_fields=RapportAiFields(**merged_raf),
-        notes=merged_notes,
-    )
-
-
-async def _parse_chunk(
-    chunk: list[dict],
-    chunk_index: int,
-    total_chunks: int,
-) -> PatientDossier:
-    """Parse a single chunk of content blocks into a PatientDossier."""
-    structured_model = get_model().with_structured_output(PatientDossier)
-    logger.info(
-        f"Parsing chunk {chunk_index + 1}/{total_chunks} ({len(chunk)} block(s))"
-    )
-    return await structured_model.ainvoke(
-        [
-            SystemMessage(content=DOSSIER_SYSTEM_PROMPT),
-            HumanMessage(content=chunk),
-        ]
-    )
+# ---------------------------------------------------------------------------
+# Step 2 — Dossier parsing
+# ---------------------------------------------------------------------------
 
 
 async def parse_dossier(files: list[UploadFile]) -> PatientDossier:
-    """Parse uploaded medical documents into a structured PatientDossier."""
-    all_blocks: list[dict] = []
-    raw_parts: list[str] = []
+    """Parse uploaded medical documents into a structured PatientDossier.
+
+    Extracts text from each file via LiteParse, concatenates with separators,
+    then runs 9 parallel LLM calls (8 rubriques + patient_info) for deep extraction.
+    """
+    text_parts: list[str] = []
 
     for file in files:
         file_bytes = await file.read()
         filename = file.filename or "unknown"
-        ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+        text = extract_text(filename, file_bytes)
+        logger.info(f"File '{filename}' → {len(text)} chars extracted")
+        text_parts.append(f"--- Document: {filename} ---\n{text}")
 
-        # Content blocks for the LLM (images for PDF, text for DOCX).
-        blocks = file_to_content_blocks(filename, file_bytes)
-        logger.info(f"File '{filename}' → {len(blocks)} content block(s)")
-
-        if ext == "pdf":
-            doc = fitz.open(stream=file_bytes, filetype="pdf")
-            pages = [page.get_text().strip() for page in doc if page.get_text().strip()]
-            doc.close()
-            if pages:
-                raw_parts.append(f"--- {filename} ---\n" + "\n\n".join(pages))
-        elif ext in {"docx", "doc"}:
-            for block in blocks:
-                if block.get("type") == "text":
-                    raw_parts.append(f"--- {filename} ---\n" + block["text"])
-
-        # Separator between files so the LLM can distinguish documents.
-        if len(files) > 1:
-            all_blocks.append(
-                {
-                    "type": "text",
-                    "text": f"\n--- Document: {filename} ---\n",
-                }
-            )
-
-        all_blocks.extend(blocks)
+    combined_text = "\n\n".join(text_parts)
 
     logger.info(
-        f"Parsing dossier: {len(files)} file(s), {len(all_blocks)} total block(s)"
+        f"Parsing dossier: {len(files)} file(s), {len(combined_text)} total chars"
     )
 
-    # Split into chunks if too many images, then parse in parallel.
-    chunks = _chunk_blocks(all_blocks, _MAX_IMAGES_PER_CHUNK)
+    dossier = await extract_dossier(combined_text)
 
-    if len(chunks) == 1:
-        # Small enough for a single call.
-        structured_model = get_model().with_structured_output(PatientDossier)
-        dossier = await structured_model.ainvoke(
-            [
-                SystemMessage(content=DOSSIER_SYSTEM_PROMPT),
-                HumanMessage(content=all_blocks),
-            ]
-        )
-    else:
-        # Parallel calls — one per chunk, then merge.
-        logger.info(
-            f"Splitting into {len(chunks)} parallel chunks "
-            f"(max {_MAX_IMAGES_PER_CHUNK} images each)"
-        )
-        partials = await asyncio.gather(
-            *[_parse_chunk(chunk, i, len(chunks)) for i, chunk in enumerate(chunks)]
-        )
-        dossier = _merge_dossiers(list(partials))
-        logger.info(f"Merged {len(chunks)} partial dossiers into one")
-
-    dossier.raw_content = "\n\n".join(raw_parts) if raw_parts else None
-
-    logger.info(
-        f"Dossier parsed: {len(dossier.timeline)} timeline entries, "
-        f"{len(dossier.medications)} medications, "
-        f"{len(dossier.diagnostics)} diagnostics, "
-        f"raw_content: {len(dossier.raw_content or '')} chars"
-    )
+    logger.info(f"Dossier parsed: {len(dossier.raw_content or '')} chars extracted")
 
     return dossier
+
+
+# ---------------------------------------------------------------------------
+# Storage helpers
+# ---------------------------------------------------------------------------
 
 
 async def parse_and_store_dossier(files: list[UploadFile]) -> DossierResponse:
@@ -276,3 +124,32 @@ def get_dossier(dossier_id: str) -> DossierResponse:
 def patch_dossier(dossier_id: str, patch: PatientDossierPatch) -> DossierResponse:
     """Apply a partial update to a stored dossier."""
     return crud.patch_dossier(dossier_id, patch)
+
+
+# ---------------------------------------------------------------------------
+# Dossier chat — answer questions about patient data
+# ---------------------------------------------------------------------------
+
+_CHAT_SYSTEM_PROMPT = """\
+Tu es un psychiatre expert suisse. Tu reçois le texte intégral extrait \
+d'un dossier médical patient et une question du médecin rédacteur.
+
+Réponds de manière précise, factuelle et concise en français. \
+Base ta réponse UNIQUEMENT sur le contenu du dossier fourni. \
+Cite les dates, auteurs et sources quand c'est pertinent. \
+Si l'information n'est pas dans le dossier, dis-le clairement. \
+Ne fabrique JAMAIS d'information."""
+
+
+async def answer_dossier_question(question: str, raw_content: str) -> str:
+    """Answer a free-form question about the patient dossier."""
+    model = get_model()
+    response = await model.ainvoke(
+        [
+            SystemMessage(content=_CHAT_SYSTEM_PROMPT),
+            HumanMessage(
+                content=f"DOSSIER PATIENT:\n\n{raw_content}\n\n---\n\nQUESTION: {question}"
+            ),
+        ]
+    )
+    return response.content

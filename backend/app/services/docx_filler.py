@@ -154,7 +154,7 @@ def _check_checkbox(ff: etree._Element) -> None:
                 elif ft == "end" and state == "sep":
                     break
             elif state == "sep":
-                sym = elem.find(f".//w:sym", NS)
+                sym = elem.find(".//w:sym", NS)
                 if sym is not None:
                     sym.set(f"{W}char", "00FE")
                     return

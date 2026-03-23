@@ -2,10 +2,16 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-# System deps for pymupdf and python-docx
+# System deps for python-docx + Node.js for liteparse CLI
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libglib2.0-0 libsm6 libxrender1 libxext6 \
+    curl \
+    && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
+    && apt-get install -y --no-install-recommends nodejs \
     && rm -rf /var/lib/apt/lists/*
+
+# Install liteparse CLI (required by the Python wrapper)
+RUN npm install -g @llamaindex/liteparse
 
 # Install uv for fast dependency management
 COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv

@@ -55,8 +55,8 @@ def update_dossier(dossier_id: str, patch: dict) -> PatientDossier | None:
     """Apply a partial update to a stored dossier and write back to disk.
 
     Merge logic:
-    - Dict fields (patient_info, rapport_ai_fields): merge keys.
-    - List fields (timeline, medications, diagnostics): replace entirely.
+    - Dict fields (patient_info): merge keys.
+    - Nested dict fields (rubriques): deep-merge two levels (rubrique → sub-fields).
     - Scalar fields (notes): replace.
 
     Returns the updated dossier, or None if not found.
@@ -70,9 +70,26 @@ def update_dossier(dossier_id: str, patch: dict) -> PatientDossier | None:
     for key, value in patch.items():
         if value is None:
             continue
-        # Deep-merge dicts (patient_info, rapport_ai_fields)
-        if isinstance(value, dict) and isinstance(current.get(key), dict):
-            current[key] = {**current[key], **{k: v for k, v in value.items() if v is not None}}
+        if key == "rubriques" and isinstance(value, dict):
+            # Deep-merge two levels: rubriques.r01_historique.antecedents etc.
+            for rub_key, rub_value in value.items():
+                if rub_value is None:
+                    continue
+                if isinstance(rub_value, dict) and isinstance(
+                    current.get(key, {}).get(rub_key), dict
+                ):
+                    current[key][rub_key] = {
+                        **current[key][rub_key],
+                        **{k: v for k, v in rub_value.items() if v is not None},
+                    }
+                else:
+                    current.setdefault(key, {})[rub_key] = rub_value
+        elif isinstance(value, dict) and isinstance(current.get(key), dict):
+            # Shallow merge for flat dicts (patient_info)
+            current[key] = {
+                **current[key],
+                **{k: v for k, v in value.items() if v is not None},
+            }
         else:
             # Lists and scalars: replace entirely
             current[key] = value
@@ -93,7 +110,9 @@ def save_field_values(dossier_id: str, field_values: dict) -> Path:
     folder = _dossier_dir(dossier_id)
     folder.mkdir(parents=True, exist_ok=True)
     path = folder / "field_values.json"
-    path.write_text(json.dumps(field_values, ensure_ascii=False, indent=2), encoding="utf-8")
+    path.write_text(
+        json.dumps(field_values, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
     return path
 
 
