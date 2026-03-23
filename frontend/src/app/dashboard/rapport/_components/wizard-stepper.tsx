@@ -1,52 +1,29 @@
 import { Logo } from "@/components/logo";
-import { CANTONS, type Canton } from "@/lib/mock-data";
 import clsx from "clsx";
 
 // ── Constants ────────────────────────────────────────────
 
-const STEPS = ["Documents", "Résumé", "Rapport AI"] as const;
+const STEPS = ["Rapports", "Documents & Notes", "Résumé", "Générer"] as const;
 
 // ── Component ────────────────────────────────────────────
 
 interface WizardStepperProps {
   step: number;
   onStepChange: (step: number) => void;
-  canton: Canton;
-  onCantonChange: (canton: Canton) => void;
 }
 
 /**
- * Top bar with logo, canton selector, and step navigation pills.
- * The canton selector is always visible so the doctor can verify/change
- * the template canton from any step.
+ * Top bar with logo and step navigation pills.
  */
 export function WizardStepper({
   step,
   onStepChange,
-  canton,
-  onCantonChange,
 }: WizardStepperProps) {
   return (
     <div className="flex items-center justify-between">
-      {/* Left: logo + canton */}
+      {/* Left: logo */}
       <div className="flex items-center gap-4">
         <Logo size="sm" href="/dashboard" />
-
-        {/* Canton selector pill */}
-        <div className="inline-flex items-baseline gap-2 rounded-full border border-zinc-200 px-3 py-1.5">
-          <span className="text-xs font-medium text-zinc-500">Canton</span>
-          <select
-            value={canton}
-            onChange={(e) => onCantonChange(e.target.value as Canton)}
-            className="border-none bg-transparent p-0 text-xs font-semibold text-zinc-900 focus:outline-none"
-          >
-            {CANTONS.map((c) => (
-              <option key={c.value} value={c.value}>
-                {c.label}
-              </option>
-            ))}
-          </select>
-        </div>
       </div>
 
       {/* Right: step pills */}

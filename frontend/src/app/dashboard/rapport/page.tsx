@@ -6,18 +6,28 @@ import { Heading } from "@/components/heading";
 import { Text } from "@/components/text";
 import { Button } from "@/components/button";
 import type { Canton, WizardDocument } from "@/lib/mock-data";
+import type { TemplateResponse } from "@/lib/api";
 import type { PatientDossier } from "@/lib/schemas/classification";
 import { WizardStepper, TOTAL_STEPS } from "./_components/wizard-stepper";
+import { StepSelectReports } from "./_components/step-select-reports";
 import { StepDocuments } from "./_components/step-documents";
 import { StepSummary } from "./_components/step-summary";
-import { StepReport } from "./_components/step-report";
+import { StepGenerate } from "./_components/step-generate";
 
 // ── Step descriptions shown below the heading ────────────
 
+const STEP_TITLES = [
+  "Sélection des rapports",
+  "Documents & Notes",
+  "Résumé du dossier",
+  "Générer les rapports",
+];
+
 const STEP_DESCRIPTIONS = [
-  "Commencez par importer les documents du dossier patient.",
+  "Commencez par sélectionner le(s) rapport(s) à remplir ou importez vos propres modèles.",
+  "Importez les documents du dossier patient et ajoutez vos notes.",
   "Vérifiez et complétez les informations extraites de vos documents.",
-  "Votre rapport est prêt à être généré.",
+  "Génération et consultation de vos rapports.",
 ];
 
 // ── Page ─────────────────────────────────────────────────
@@ -25,18 +35,22 @@ const STEP_DESCRIPTIONS = [
 export default function RapportPage() {
   const { user } = useUser();
 
-  // Cross-step state — kept here because it's used by navigation or multiple steps
+  // Cross-step state
   const [step, setStep] = useState(0);
   const [canton, setCanton] = useState<Canton>(
     (user?.unsafeMetadata?.canton as Canton) || "fribourg"
   );
-  // docs state is lifted here so the page can compute `canNext` for step 1
+
+  // Step 0: selected report templates
+  const [selectedTemplates, setSelectedTemplates] = useState<TemplateResponse[]>([]);
+
+  // Step 1: uploaded documents + notes
   const [docs, setDocs] = useState<WizardDocument[]>([]);
-  // Dossier state — set after parse-dossier, persisted server-side, passed to all steps
+  const [notes, setNotes] = useState("");
+
+  // Step 2: parsed dossier
   const [dossierId, setDossierId] = useState<string | null>(null);
   const [dossier, setDossier] = useState<PatientDossier | null>(null);
-  // Notes — psychiatrist's own observations, entered in Step 1 before AI analysis
-  const [notes, setNotes] = useState("");
 
   // Sync canton from Clerk metadata when it loads
   useEffect(() => {
@@ -45,29 +59,41 @@ export default function RapportPage() {
     }
   }, [user?.unsafeMetadata?.canton]);
 
-  // Step 1 requires at least one classified document to proceed
-  const canNext = step === 0 ? docs.some((d) => d.status === "done") : true;
-
+  // Navigation guard: each step has its own "can proceed" condition
+  const canNext = (() => {
+    switch (step) {
+      case 0: return selectedTemplates.length > 0;       // must select at least one report
+      case 1: return docs.some((d) => d.status === "done"); // must have at least one classified doc
+      case 2: return true;                                 // résumé is always ready
+      default: return false;
+    }
+  })();
 
   return (
     <>
-      {/* Top bar: logo + canton + stepper */}
+      {/* Top bar: logo + stepper */}
       <WizardStepper
         step={step}
         onStepChange={setStep}
-        canton={canton}
-        onCantonChange={setCanton}
       />
 
       {/* Page title */}
       <div className="mt-10">
-        <Heading>Nouveau rapport AI</Heading>
+        <Heading>{STEP_TITLES[step]}</Heading>
         <Text className="mt-1">{STEP_DESCRIPTIONS[step]}</Text>
       </div>
 
       {/* Step content */}
       <div className="mt-8">
         {step === 0 && (
+          <StepSelectReports
+            canton={canton}
+            onCantonChange={setCanton}
+            selectedTemplates={selectedTemplates}
+            onSelectedTemplatesChange={setSelectedTemplates}
+          />
+        )}
+        {step === 1 && (
           <StepDocuments
             docs={docs}
             onDocsChange={setDocs}
@@ -75,7 +101,7 @@ export default function RapportPage() {
             onNotesChange={setNotes}
           />
         )}
-        {step === 1 && (
+        {step === 2 && (
           <StepSummary
             docs={docs}
             notes={notes}
@@ -87,7 +113,13 @@ export default function RapportPage() {
             }}
           />
         )}
-        {step === 2 && <StepReport canton={canton} dossierId={dossierId} />}
+        {step === 3 && (
+          <StepGenerate
+            selectedTemplates={selectedTemplates}
+            canton={canton}
+            dossierId={dossierId}
+          />
+        )}
       </div>
 
       {/* Navigation */}

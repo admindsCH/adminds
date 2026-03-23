@@ -398,6 +398,158 @@ export const REPORT_TYPES: ReportType[] = [
   },
 ];
 
+// --- Document Library (Step 3) ---
+
+/** Swiss insurance companies */
+export interface Insurance {
+  id: string;
+  name: string;
+  shortName: string;
+  color: string; // tailwind bg class for avatar
+}
+
+export const MOCK_INSURANCES: Insurance[] = [
+  { id: "suva", name: "SUVA", shortName: "SU", color: "bg-orange-500" },
+  { id: "css", name: "CSS Assurance", shortName: "CS", color: "bg-blue-600" },
+  { id: "helsana", name: "Helsana", shortName: "HE", color: "bg-red-500" },
+  { id: "visana", name: "Visana", shortName: "VI", color: "bg-emerald-600" },
+  { id: "groupe-mutuel", name: "Groupe Mutuel", shortName: "GM", color: "bg-violet-600" },
+  { id: "ai-federal", name: "Assurance invalidité (AI)", shortName: "AI", color: "bg-zinc-800" },
+];
+
+/** Document type categories */
+export type DocumentTypeCategory =
+  | "rapport-medical"
+  | "rapport-assurance"
+  | "rapport-perte-gain"
+  | "rapport-ai";
+
+export const DOCUMENT_TYPE_CATEGORIES: { value: DocumentTypeCategory; label: string }[] = [
+  { value: "rapport-ai", label: "Rapport AI" },
+  { value: "rapport-medical", label: "Rapport médical" },
+  { value: "rapport-assurance", label: "Rapport assurance" },
+  { value: "rapport-perte-gain", label: "Perte de gain" },
+];
+
+/** A document template available in the library */
+export interface DocumentTemplate {
+  id: string;
+  name: string;
+  description: string;
+  category: DocumentTypeCategory;
+  insuranceId: string;
+  canton: Canton | "all"; // "all" = available in all cantons
+  estimatedMinutes: number; // estimated generation time
+  pageCount: number; // typical page count
+  isOfficial: boolean; // official canton/insurance form vs custom
+}
+
+export const MOCK_DOCUMENT_TEMPLATES: DocumentTemplate[] = [
+  // Rapport AI
+  {
+    id: "tpl-ai-fribourg",
+    name: "Rapport AI",
+    description: "Formulaire officiel d'évaluation psychiatrique pour l'assurance invalidité.",
+    category: "rapport-ai",
+    insuranceId: "ai-federal",
+    canton: "fribourg",
+    estimatedMinutes: 3,
+    pageCount: 8,
+    isOfficial: true,
+  },
+  {
+    id: "tpl-ai-geneve",
+    name: "Rapport AI",
+    description: "Formulaire officiel d'évaluation psychiatrique pour l'assurance invalidité.",
+    category: "rapport-ai",
+    insuranceId: "ai-federal",
+    canton: "geneve",
+    estimatedMinutes: 3,
+    pageCount: 6,
+    isOfficial: true,
+  },
+  // Rapport médical initial
+  {
+    id: "tpl-medical-initial-suva",
+    name: "Rapport médical initial",
+    description: "Premier rapport médical pour ouverture de dossier d'accident ou maladie professionnelle.",
+    category: "rapport-medical",
+    insuranceId: "suva",
+    canton: "all",
+    estimatedMinutes: 2,
+    pageCount: 4,
+    isOfficial: true,
+  },
+  {
+    id: "tpl-medical-initial-css",
+    name: "Rapport médical initial",
+    description: "Rapport médical initial, évaluation de l'état de santé et capacité de travail.",
+    category: "rapport-medical",
+    insuranceId: "css",
+    canton: "all",
+    estimatedMinutes: 2,
+    pageCount: 3,
+    isOfficial: true,
+  },
+  {
+    id: "tpl-medical-initial-helsana",
+    name: "Rapport médical initial",
+    description: "Formulaire de rapport médical initial pour évaluation maladie ou accident.",
+    category: "rapport-medical",
+    insuranceId: "helsana",
+    canton: "all",
+    estimatedMinutes: 2,
+    pageCount: 4,
+    isOfficial: true,
+  },
+  // Rapport perte de gain
+  {
+    id: "tpl-perte-gain-visana",
+    name: "Rapport perte de gain",
+    description: "Évaluation de la perte de gain, incluant capacité résiduelle et limitations.",
+    category: "rapport-perte-gain",
+    insuranceId: "visana",
+    canton: "all",
+    estimatedMinutes: 3,
+    pageCount: 5,
+    isOfficial: true,
+  },
+  {
+    id: "tpl-perte-gain-gm",
+    name: "Rapport perte de gain",
+    description: "Formulaire de perte de gain pour évaluation d'indemnités journalières.",
+    category: "rapport-perte-gain",
+    insuranceId: "groupe-mutuel",
+    canton: "all",
+    estimatedMinutes: 3,
+    pageCount: 5,
+    isOfficial: true,
+  },
+  // Rapport assurance
+  {
+    id: "tpl-assurance-suva",
+    name: "Rapport d'assurance",
+    description: "Rapport de suivi, évolution médicale et réévaluation de la capacité de travail.",
+    category: "rapport-assurance",
+    insuranceId: "suva",
+    canton: "all",
+    estimatedMinutes: 2,
+    pageCount: 4,
+    isOfficial: true,
+  },
+  {
+    id: "tpl-assurance-css",
+    name: "Rapport d'assurance",
+    description: "Rapport de suivi pour renouvellement d'indemnités ou réévaluation médicale.",
+    category: "rapport-assurance",
+    insuranceId: "css",
+    canton: "all",
+    estimatedMinutes: 2,
+    pageCount: 3,
+    isOfficial: true,
+  },
+];
+
 // --- Wizard: Extracted information from documents (Step 2 mock) ---
 
 export type Canton = "geneve" | "fribourg";

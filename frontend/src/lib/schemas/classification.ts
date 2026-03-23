@@ -27,22 +27,16 @@ export type AuthorType =
   | "assurance"
   | "inconnu";
 
-/** Semantic field keys — 14 canton-agnostic keys mapped to form sections at generation time. */
-export type RapportAiField =
-  | "antecedents"
-  | "situation_actuelle"
-  | "medication"
-  | "constats_medicaux"
-  | "diagnostics_incapacitants"
-  | "diagnostics_sans_incidence"
-  | "pronostic_capacite_travail"
-  | "plan_traitement"
-  | "situation_professionnelle"
-  | "limitations_fonctionnelles"
-  | "freins_readaptation"
-  | "capacite_readaptation"
-  | "fonctions_cognitives"
-  | "activites_possibles";
+/** Rubrique keys — 8 thematic groups for report data. */
+export type RubriqueKey =
+  | "r01_historique"
+  | "r02_clinique"
+  | "r03_traitement"
+  | "r04_professionnel"
+  | "r05_capacite_travail"
+  | "r06_readaptation"
+  | "r07_freins_cognition"
+  | "r08_activites";
 
 // --- API response types ---
 
@@ -52,7 +46,7 @@ export interface DocumentClassification {
   date: string | null;
   author_type: AuthorType;
   summary: string;
-  rapport_ai_fields: RapportAiField[];
+  rubriques: RubriqueKey[];
 }
 
 /** A classified document as returned by POST /api/classify. */
@@ -123,30 +117,81 @@ export interface Diagnostic {
   type: "incapacitant" | "sans_incidence" | "inconnu";
 }
 
-export interface RapportAiFields {
+// --- Rubrique models (R01–R08) ---
+
+export interface R01Historique {
   antecedents: string | null;
-  situation_actuelle: string | null;
-  medication: string | null;
+  periode_traitement: string | null;
+  consultations: string | null;
+  intervenants: string | null;
+  cause_incapacite: string | null;
+  timeline: TimelineEntry[];
+}
+
+export interface R02Clinique {
+  symptomes_actuels: string | null;
   constats_medicaux: string | null;
   diagnostics_incapacitants: string | null;
   diagnostics_sans_incidence: string | null;
-  pronostic_capacite_travail: string | null;
+  frequence_consultations: string | null;
+  diagnostics: Diagnostic[];
+}
+
+export interface R03Traitement {
+  medication: string | null;
   plan_traitement: string | null;
-  situation_professionnelle: string | null;
-  limitations_fonctionnelles: string | null;
-  freins_readaptation: string | null;
-  capacite_readaptation: string | null;
+  pronostic: string | null;
+  medications: Medication[];
+}
+
+export interface R04Professionnel {
+  activite: string | null;
+  historique_emploi: string | null;
+  exigences_poste: string | null;
+  historique_it: string | null;
+}
+
+export interface R05CapaciteTravail {
+  heures_jour_habituelle: string | null;
+  heures_jour_adaptee: string | null;
+  rythme: string | null;
+  absences: string | null;
+}
+
+export interface R06Readaptation {
+  potentiel: string | null;
+  obstacles: string | null;
+  ressources: string | null;
+  taches_menageres: string | null;
+  facteurs_environnementaux: string | null;
+}
+
+export interface R07FreinsCognition {
+  freins_psy: string | null;
   fonctions_cognitives: string | null;
+}
+
+export interface R08Activites {
+  limitations_fonctionnelles: string | null;
   activites_possibles: string | null;
+  capacite_conduire: string | null;
+}
+
+export interface Rubriques {
+  r01_historique: R01Historique;
+  r02_clinique: R02Clinique;
+  r03_traitement: R03Traitement;
+  r04_professionnel: R04Professionnel;
+  r05_capacite_travail: R05CapaciteTravail;
+  r06_readaptation: R06Readaptation;
+  r07_freins_cognition: R07FreinsCognition;
+  r08_activites: R08Activites;
 }
 
 /** Complete structured output from POST /api/parse-dossier. */
 export interface PatientDossier {
   patient_info: PatientInfo;
-  timeline: TimelineEntry[];
-  medications: Medication[];
-  diagnostics: Diagnostic[];
-  rapport_ai_fields: RapportAiFields;
+  rubriques: Rubriques;
   notes: string | null;
 }
 
@@ -156,12 +201,14 @@ export interface DossierResponse {
   dossier: PatientDossier;
 }
 
-/** Partial update for PatientDossier (all fields optional). */
+/** Deep partial — makes all nested properties optional too. */
+type DeepPartial<T> = {
+  [P in keyof T]?: T[P] extends object ? DeepPartial<T[P]> : T[P];
+};
+
+/** Partial update for PatientDossier (all fields optional, deeply). */
 export interface PatientDossierPatch {
   patient_info?: Partial<PatientInfo>;
-  timeline?: TimelineEntry[];
-  medications?: Medication[];
-  diagnostics?: Diagnostic[];
-  rapport_ai_fields?: Partial<RapportAiFields>;
+  rubriques?: DeepPartial<Rubriques>;
   notes?: string | null;
 }

@@ -1,6 +1,8 @@
+import { useCallback } from "react";
 import { Subheading } from "@/components/heading";
 import { Text } from "@/components/text";
 import type { WizardDocument } from "@/lib/mock-data";
+import type { CategoryType } from "@/lib/schemas/classification";
 import { useFileUpload } from "../_hooks/use-file-upload";
 import { DocumentListItem } from "./document-list-item";
 import clsx from "clsx";
@@ -54,6 +56,12 @@ interface StepDocumentsProps {
 export function StepDocuments({ docs, onDocsChange, notes, onNotesChange }: StepDocumentsProps) {
   const { dragging, fileRef, addFiles, onDrop, onDragOver, onDragLeave } =
     useFileUpload(onDocsChange);
+
+  const handleCategoryChange = useCallback((id: string, category: CategoryType) => {
+    onDocsChange((prev) =>
+      prev.map((d) => (d.id === id ? { ...d, category } : d))
+    );
+  }, [onDocsChange]);
 
   return (
     <div>
@@ -125,6 +133,7 @@ export function StepDocuments({ docs, onDocsChange, notes, onNotesChange }: Step
               <DocumentListItem
                 key={d.id}
                 doc={d}
+                onCategoryChange={handleCategoryChange}
                 onDelete={(id) => onDocsChange((prev) => prev.filter((doc) => doc.id !== id))}
               />
             ))}

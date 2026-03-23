@@ -105,6 +105,22 @@ export async function apiDelete(path: string): Promise<void> {
 }
 
 // API Types
+
+export interface TemplateResponse {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  insurance_id: string;
+  canton: string;
+  estimated_minutes: number;
+  page_count: number;
+  is_official: boolean;
+  has_schema: boolean;
+  filename: string;
+  size: number;
+}
+
 export interface UserProfile {
   id: string;
   email: string;
@@ -138,10 +154,44 @@ export const api = {
     apiPatch<DossierResponse>(`/api/dossiers/${dossierId}`, patch),
 
   /** Generate a filled .docx report. Returns field values, schema, and base64 docx. */
-  generateReport: (dossierId: string, canton: string): Promise<GenerateReportResponse> =>
-    apiPost<GenerateReportResponse>("/api/generate-report", { dossier_id: dossierId, canton }),
+  generateReport: (dossierId: string, canton: string, templateId?: string): Promise<GenerateReportResponse> =>
+    apiPost<GenerateReportResponse>("/api/generate-report", {
+      dossier_id: dossierId,
+      canton,
+      template_id: templateId ?? null,
+    }),
 
   /** Re-fill the docx template with user-edited field values. Returns updated base64 docx. */
-  updateReport: (dossierId: string, canton: string, fieldValues: Record<string, string | boolean>): Promise<UpdateReportResponse> =>
-    apiPost<UpdateReportResponse>("/api/update-report", { dossier_id: dossierId, canton, field_values: fieldValues }),
+  updateReport: (dossierId: string, canton: string, fieldValues: Record<string, string | boolean>, templateId?: string): Promise<UpdateReportResponse> =>
+    apiPost<UpdateReportResponse>("/api/update-report", {
+      dossier_id: dossierId,
+      canton,
+      field_values: fieldValues,
+      template_id: templateId ?? null,
+    }),
+
+  /** Ask a question about the patient dossier. */
+  dossierChat: (question: string, rawContent: string): Promise<{ answer: string }> =>
+    apiPost<{ answer: string }>("/api/dossier-chat", { question, raw_content: rawContent }),
+
+  // ── Template management ────────────────────────────────
+
+  /** List all available report templates. */
+  listTemplates: (): Promise<TemplateResponse[]> =>
+    apiGet<TemplateResponse[]>("/api/templates"),
+
+  /** Upload a new template. Backend auto-classifies (name, category, canton, insurance). */
+  uploadTemplate: (file: File): Promise<TemplateResponse> => {
+    const formData = new FormData();
+    formData.append("file", file);
+    return apiPostFormData<TemplateResponse>("/api/templates", formData);
+  },
+
+  /** Delete a template. */
+  deleteTemplate: (templateId: string): Promise<void> =>
+    apiDelete(`/api/templates/${templateId}`),
+
+  /** Re-run schema extraction on a template. */
+  extractSchema: (templateId: string): Promise<{ template_id: string; field_count: number; sections: string[] }> =>
+    apiPost(`/api/templates/${templateId}/extract-schema`),
 };
