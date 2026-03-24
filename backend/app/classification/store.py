@@ -11,8 +11,11 @@ Replaces the old in-memory dict so dossiers survive server restarts.
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from uuid import uuid4
+
+_UUID_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
 
 from app.classification.schemas import PatientDossier
 
@@ -22,6 +25,8 @@ _DATA_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "dossiers"
 
 def _dossier_dir(dossier_id: str) -> Path:
     """Return the folder path for a given dossier UUID."""
+    if not _UUID_RE.match(dossier_id):
+        raise ValueError(f"Invalid dossier ID: {dossier_id}")
     return _DATA_DIR / dossier_id
 
 

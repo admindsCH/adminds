@@ -15,6 +15,7 @@ def get_model(**kwargs) -> AzureChatOpenAI:
         azure_endpoint=settings.azure_openai_endpoint,
         api_version=settings.azure_openai_api_version,
         temperature=0,
+        max_retries=5,
         **kwargs,
     )
 

@@ -88,7 +88,11 @@ async def classify_template(
         ]
     )
 
-    result = json.loads(response.content)
+    try:
+        result = json.loads(response.content)
+    except json.JSONDecodeError as e:
+        logger.error(f"LLM returned invalid JSON during classification: {e}")
+        result = {}
 
     # Map insurance name to ID
     insurance_name = result.get("insurance", "").lower().strip()

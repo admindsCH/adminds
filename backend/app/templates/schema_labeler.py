@@ -104,7 +104,11 @@ async def label_slots(
     )
 
     # Parse response
-    result = json.loads(response.content)
+    try:
+        result = json.loads(response.content)
+    except json.JSONDecodeError as e:
+        logger.error(f"LLM returned invalid JSON during labeling: {e}")
+        result = {"fields": []}
     labels = result.get("fields", [])
 
     if len(labels) != len(raw_slots):

@@ -18,6 +18,7 @@ interface GenerationResult {
   docxBlob: Blob;
   fieldSchema: FieldSchemaEntry[];
   fieldValues: Record<string, string | boolean>;
+  isPdf: boolean;
 }
 
 interface CartItem {
@@ -87,13 +88,17 @@ const STATUS_LABELS: Record<GenerationStatus, string> = {
   error: "Erreur",
 };
 
-function base64ToBlob(base64: string): Blob {
+function base64ToBlob(base64: string, mimeType: string): Blob {
   const binaryStr = atob(base64);
   const bytes = new Uint8Array(binaryStr.length);
   for (let i = 0; i < binaryStr.length; i++) bytes[i] = binaryStr.charCodeAt(i);
-  return new Blob([bytes], {
-    type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  });
+  return new Blob([bytes], { type: mimeType });
+}
+
+function getFileMeta(filename: string) {
+  const isPdf = filename.toLowerCase().endsWith(".pdf");
+  const mimeType = isPdf ? "application/pdf" : "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+  return { isPdf, mimeType };
 }
 
 function buildFilename(name: string, ext: string): string {
@@ -243,35 +248,36 @@ function DocumentDetailView({
     [result],
   );
 
-  useEffect(() => {
-    if (!result || !previewRef.current) return;
-    docxBlobRef.current = result.docxBlob;
+  const pdfUrlRef = useRef<string | null>(null);
+
+  const renderPreview = useCallback(async (blob: Blob, isPdf: boolean) => {
+    if (pdfUrlRef.current) { URL.revokeObjectURL(pdfUrlRef.current); pdfUrlRef.current = null; }
+    docxBlobRef.current = blob;
+    if (!previewRef.current) return;
     previewRef.current.innerHTML = "";
-    renderAsync(result.docxBlob, previewRef.current, undefined, {
-      ignoreWidth: true,
-      ignoreHeight: true,
-    });
-  }, [result]);
+    if (isPdf) {
+      const url = URL.createObjectURL(blob);
+      pdfUrlRef.current = url;
+      const iframe = document.createElement("iframe");
+      iframe.src = url;
+      iframe.className = "w-full border-0";
+      iframe.style.height = "80vh";
+      previewRef.current.appendChild(iframe);
+    } else {
+      await renderAsync(blob, previewRef.current, undefined, { ignoreWidth: true, ignoreHeight: true });
+    }
+  }, []);
 
   useEffect(() => {
     if (!result) return;
+    renderPreview(result.docxBlob, result.isPdf);
     const initial: Record<string, string> = {};
     for (const [key, val] of Object.entries(result.fieldValues)) {
       initial[key] = String(val);
     }
     setEditedValues(initial);
-  }, [result]);
-
-  const renderPreview = useCallback(async (blob: Blob) => {
-    docxBlobRef.current = blob;
-    if (previewRef.current) {
-      previewRef.current.innerHTML = "";
-      await renderAsync(blob, previewRef.current, undefined, {
-        ignoreWidth: true,
-        ignoreHeight: true,
-      });
-    }
-  }, []);
+    return () => { if (pdfUrlRef.current) { URL.revokeObjectURL(pdfUrlRef.current); pdfUrlRef.current = null; } };
+  }, [result, renderPreview]);
 
   const toggleSection = useCallback((sectionId: string) => {
     setCollapsedSections((prev) => {
@@ -291,8 +297,9 @@ function DocumentDetailView({
     setUpdateError(null);
     try {
       const res = await api.updateReport(dossierId, canton, editedValues, item.template.id);
-      const blob = base64ToBlob(res.docx_base64);
-      await renderPreview(blob);
+      const { isPdf, mimeType } = getFileMeta(item.template.filename);
+      const blob = base64ToBlob(res.docx_base64, mimeType);
+      await renderPreview(blob, isPdf);
     } catch (e) {
       setUpdateError(e instanceof Error ? e.message : "Erreur lors de la mise à jour");
     } finally {
@@ -306,26 +313,28 @@ function DocumentDetailView({
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = buildFilename(item.template.name, "docx");
+    const ext = result?.isPdf ? "pdf" : "docx";
+    a.download = buildFilename(item.template.name, ext);
     a.click();
     URL.revokeObjectURL(url);
-  }, [item.template.name]);
+  }, [item.template.name, result?.isPdf]);
 
   const downloadPdf = useCallback(() => {
     if (!previewRef.current) return;
-    const win = window.open("", "_blank");
-    if (!win) return;
     const styles = Array.from(document.querySelectorAll("style, link[rel='stylesheet']"))
       .map((el) => el.outerHTML)
       .join("\n");
-    win.document.write(
-      `<!DOCTYPE html><html><head><title>${buildFilename(item.template.name, "pdf")}</title>${styles}
-      <style>@media print { body { margin: 0; } .docx-preview { box-shadow: none !important; } }</style>
-      </head><body>${previewRef.current.innerHTML}</body></html>`
-    );
-    win.document.close();
-    win.onload = () => { win.print(); win.close(); };
-  }, [item.template.name]);
+    const printStyles = "<style>@media print { body { margin: 0; } .docx-preview { box-shadow: none !important; } }</style>";
+    const iframe = document.createElement("iframe");
+    iframe.style.position = "fixed";
+    iframe.style.left = "-9999px";
+    iframe.srcdoc = `<!DOCTYPE html><html><head>${styles}${printStyles}</head><body>${previewRef.current.innerHTML}</body></html>`;
+    document.body.appendChild(iframe);
+    iframe.onload = () => {
+      iframe.contentWindow?.print();
+      setTimeout(() => document.body.removeChild(iframe), 1000);
+    };
+  }, []);
 
   const insuranceName = item.template.insurance_name;
   const hasEditor = result && editorSections.length > 0;
@@ -357,8 +366,14 @@ function DocumentDetailView({
               {showEditor ? "Fermer" : "Modifier"}
             </Button>
           )}
-          <Button outline onClick={downloadPdf}>Télécharger PDF</Button>
-          <Button color="indigo" onClick={downloadDocx}>Télécharger .docx</Button>
+          {result?.isPdf ? (
+            <Button color="indigo" onClick={downloadDocx}>Télécharger PDF</Button>
+          ) : (
+            <>
+              <Button outline onClick={downloadPdf}>Télécharger PDF</Button>
+              <Button color="indigo" onClick={downloadDocx}>Télécharger .docx</Button>
+            </>
+          )}
         </div>
       </div>
 
@@ -434,16 +449,26 @@ function DocumentDetailView({
 
 // ── Generation Progress View ────────────────────────────
 
+function RetryIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.992 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182M20.015 4.356v4.992" />
+    </svg>
+  );
+}
+
 function GenerationView({
   cart,
   doneCount,
   allDone,
   onViewItem,
+  onRetryItem,
 }: {
   cart: CartItem[];
   doneCount: number;
   allDone: boolean;
   onViewItem: (templateId: string) => void;
+  onRetryItem: (templateId: string) => void;
 }) {
   return (
     <div className="mx-auto max-w-2xl py-8">
@@ -512,11 +537,18 @@ function GenerationView({
                     {isDone && " — cliquez pour voir"}
                   </p>
                 </div>
-                <div className="shrink-0">
+                <div className="shrink-0 flex items-center gap-2">
                   {isDone ? (
                     <CheckCircleIcon className="h-5 w-5 text-emerald-500" />
                   ) : item.status === "error" ? (
-                    <XIcon className="h-5 w-5 text-red-400" />
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); onRetryItem(item.template.id); }}
+                      className="flex items-center gap-1 rounded-md bg-indigo-50 px-2.5 py-1 text-xs font-medium text-indigo-600 hover:bg-indigo-100 transition-colors"
+                    >
+                      <RetryIcon className="h-3.5 w-3.5" />
+                      Réessayer
+                    </button>
                   ) : item.status !== "pending" ? (
                     <SpinnerIcon className="h-5 w-5 text-indigo-500" />
                   ) : (
@@ -546,6 +578,63 @@ export function StepGenerate({ selectedTemplates, canton, dossierId }: StepGener
   const [allDone, setAllDone] = useState(false);
   const [viewingTemplateId, setViewingTemplateId] = useState<string | null>(null);
   const generationStarted = useRef(false);
+  const cartRef = useRef<CartItem[]>([]);
+
+  const updateItem = useCallback((templateId: string, patch: Partial<CartItem>) => {
+    setCart((prev) => {
+      const next = prev.map((c) => (c.template.id === templateId ? { ...c, ...patch } : c));
+      cartRef.current = next;
+      return next;
+    });
+  }, []);
+
+  const generateItem = useCallback(async (item: CartItem) => {
+    const canGenerate = item.template.has_schema;
+
+    updateItem(item.template.id, { status: "preparing", progress: 25, error: undefined });
+    if (!canGenerate) await new Promise((r) => setTimeout(r, 800 + Math.random() * 500));
+
+    updateItem(item.template.id, { status: "generating", progress: 50 });
+
+    if (canGenerate && dossierId) {
+      try {
+        const templateCanton = item.template.canton === "all" ? canton : item.template.canton;
+        const result = await api.generateReport(dossierId, templateCanton, item.template.id);
+
+        updateItem(item.template.id, { status: "formatting", progress: 80 });
+        const { isPdf, mimeType } = getFileMeta(item.template.filename);
+        const docxBlob = base64ToBlob(result.docx_base64, mimeType);
+
+        updateItem(item.template.id, {
+          status: "done",
+          progress: 100,
+          result: { docxBlob, fieldSchema: result.field_schema, fieldValues: result.field_values, isPdf },
+        });
+      } catch (e) {
+        updateItem(item.template.id, {
+          status: "error",
+          error: e instanceof Error ? e.message : "Erreur",
+        });
+      }
+    } else {
+      await new Promise((r) => setTimeout(r, 2000 + Math.random() * 500));
+      updateItem(item.template.id, { status: "formatting", progress: 80 });
+      await new Promise((r) => setTimeout(r, 1200 + Math.random() * 500));
+      updateItem(item.template.id, { status: "done", progress: 100 });
+    }
+  }, [dossierId, canton, updateItem]);
+
+  const retryItem = useCallback((templateId: string) => {
+    setAllDone(false);
+    const item = cartRef.current.find((c) => c.template.id === templateId);
+    if (!item) return;
+    generateItem(item).then(() => {
+      const allFinished = cartRef.current.every(
+        (c) => c.status === "done" || c.status === "error"
+      );
+      if (allFinished) setAllDone(true);
+    });
+  }, [generateItem]);
 
   // Auto-start generation on mount
   useEffect(() => {
@@ -560,49 +649,11 @@ export function StepGenerate({ selectedTemplates, canton, dossierId }: StepGener
     setCart(initialCart);
     setIsGenerating(true);
 
-    const updateItem = (templateId: string, patch: Partial<CartItem>) => {
-      setCart((prev) =>
-        prev.map((c) => (c.template.id === templateId ? { ...c, ...patch } : c))
-      );
-    };
-
     const run = async () => {
       const promises = initialCart.map((item, idx) =>
         (async () => {
           await new Promise((r) => setTimeout(r, idx * 300));
-
-          const canGenerate = item.template.has_schema;
-
-          updateItem(item.template.id, { status: "preparing", progress: 25 });
-          if (!canGenerate) await new Promise((r) => setTimeout(r, 800 + Math.random() * 500));
-
-          updateItem(item.template.id, { status: "generating", progress: 50 });
-
-          if (canGenerate && dossierId) {
-            try {
-              const templateCanton = item.template.canton === "all" ? canton : item.template.canton;
-              const result = await api.generateReport(dossierId, templateCanton, item.template.id);
-
-              updateItem(item.template.id, { status: "formatting", progress: 80 });
-              const docxBlob = base64ToBlob(result.docx_base64);
-
-              updateItem(item.template.id, {
-                status: "done",
-                progress: 100,
-                result: { docxBlob, fieldSchema: result.field_schema, fieldValues: result.field_values },
-              });
-            } catch (e) {
-              updateItem(item.template.id, {
-                status: "error",
-                error: e instanceof Error ? e.message : "Erreur",
-              });
-            }
-          } else {
-            await new Promise((r) => setTimeout(r, 2000 + Math.random() * 500));
-            updateItem(item.template.id, { status: "formatting", progress: 80 });
-            await new Promise((r) => setTimeout(r, 1200 + Math.random() * 500));
-            updateItem(item.template.id, { status: "done", progress: 100 });
-          }
+          await generateItem(item);
         })()
       );
 
@@ -611,7 +662,7 @@ export function StepGenerate({ selectedTemplates, canton, dossierId }: StepGener
     };
 
     run();
-  }, [selectedTemplates, dossierId, canton]);
+  }, [selectedTemplates, dossierId, canton, generateItem]);
 
   const doneCount = cart.filter((c) => c.status === "done").length;
 
@@ -639,6 +690,7 @@ export function StepGenerate({ selectedTemplates, canton, dossierId }: StepGener
         doneCount={doneCount}
         allDone={allDone}
         onViewItem={setViewingTemplateId}
+        onRetryItem={retryItem}
       />
     );
   }

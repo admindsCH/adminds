@@ -58,7 +58,18 @@ def _sanitize_metadata(metadata: dict[str, str]) -> dict[str, str]:
 
 def _desanitize_metadata(metadata: dict[str, str]) -> dict[str, str]:
     """Decode URL-encoded metadata values back to their original unicode form."""
-    return {key: unquote(value) for key, value in metadata.items()}
+    return {
+        key: unquote(value) if value is not None else ""
+        for key, value in metadata.items()
+    }
+
+
+def _safe_int(value: str | None, default: int) -> int:
+    """Parse an int from metadata, returning default on any failure."""
+    try:
+        return int(value) if value else default
+    except (ValueError, TypeError):
+        return default
 
 
 def upload_template(
@@ -158,8 +169,8 @@ def list_templates() -> list[TemplateResponse]:
                 insurance_id=meta.get("insurance_id", ""),
                 insurance_name=meta.get("insurance_name", ""),
                 canton=meta.get("canton", "all"),
-                estimated_minutes=int(meta.get("estimated_minutes", "5")),
-                page_count=int(meta.get("page_count", "1")),
+                estimated_minutes=_safe_int(meta.get("estimated_minutes"), 5),
+                page_count=_safe_int(meta.get("page_count"), 1),
                 is_official=meta.get("is_official", "false").lower() == "true",
                 has_schema=blob.name in schema_ids,
                 filename=meta.get("original_filename", ""),

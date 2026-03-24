@@ -457,14 +457,29 @@ def _get_parent_paragraph(element: etree._Element) -> etree._Element | None:
 
 
 def _get_element_context(element: etree._Element) -> str:
-    """Get context around a form field element — no truncation."""
+    """Get context around a form field element — no truncation.
+
+    If the form field lives inside a table cell, walks up to the table
+    and captures the preceding body-level text (question text above the
+    table), giving the LLM the full question to label correctly.
+    """
     p = _get_parent_paragraph(element)
     if p is None:
         return ""
-    parts: list[str] = []
+
+    # Check if this paragraph is inside a table cell
+    ancestor = p.getparent()
+    while ancestor is not None:
+        if ancestor.tag == f"{W}tbl":
+            # Form field is inside a table — get the text before this table
+            return _get_preceding_text(ancestor)
+        ancestor = ancestor.getparent()
+
+    # Not in a table — walk siblings of the parent
     parent = p.getparent()
     if parent is None:
         return _get_paragraph_text(p)
+    parts: list[str] = []
     found = False
     for sibling in parent:
         if sibling is p:
@@ -474,10 +489,8 @@ def _get_element_context(element: etree._Element) -> str:
         if sibling.tag == f"{W}p":
             text = _get_paragraph_text(sibling)
             if text.strip():
-                if not found:
-                    parts.append(text)
-                else:
-                    parts.append(text)
+                parts.append(text)
+                if found:
                     break
     return " | ".join(parts[-4:])
 

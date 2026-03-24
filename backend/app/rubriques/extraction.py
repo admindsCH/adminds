@@ -7,6 +7,7 @@ focused prompt. Returns a fully populated PatientDossier.
 from __future__ import annotations
 
 import asyncio
+import warnings
 
 from langchain_core.messages import HumanMessage, SystemMessage
 from loguru import logger
@@ -46,12 +47,14 @@ async def _extract_rubrique(
     """Extract a single rubrique via a focused LLM call."""
     logger.info(f"Extracting {key}...")
     structured = get_model().with_structured_output(model_cls)
-    result = await structured.ainvoke(
-        [
-            SystemMessage(content=prompt),
-            HumanMessage(content=text),
-        ]
-    )
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", category=UserWarning, module="pydantic")
+        result = await structured.ainvoke(
+            [
+                SystemMessage(content=prompt),
+                HumanMessage(content=text),
+            ]
+        )
     logger.info(f"Extracted {key}")
     return key, result
 
@@ -60,12 +63,14 @@ async def _extract_patient_info(text: str) -> PatientInfo:
     """Extract patient demographics via a focused LLM call."""
     logger.info("Extracting patient_info...")
     structured = get_model().with_structured_output(PatientInfo)
-    result = await structured.ainvoke(
-        [
-            SystemMessage(content=PATIENT_INFO_PROMPT),
-            HumanMessage(content=text),
-        ]
-    )
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", category=UserWarning, module="pydantic")
+        result = await structured.ainvoke(
+            [
+                SystemMessage(content=PATIENT_INFO_PROMPT),
+                HumanMessage(content=text),
+            ]
+        )
     logger.info("Extracted patient_info")
     return result
 

@@ -112,7 +112,11 @@ async def _generate_section(
         ]
     )
 
-    values = json.loads(response.content)
+    try:
+        values = json.loads(response.content)
+    except json.JSONDecodeError as e:
+        logger.error(f"Section '{section_name}': LLM returned invalid JSON: {e}")
+        return {}
     values = {k: v for k, v in values.items() if v is not None}
 
     logger.info(f"Section '{section_name}': {len(values)} fields filled")
@@ -232,5 +236,5 @@ async def update_report(
 def _fill(schema, template_bytes: bytes, field_values: dict[str, Any]) -> bytes:
     """Fill a template based on its format (docx or pdf)."""
     if schema.template_format == "pdf":
-        return fill_pdf_template(template_bytes, field_values)
+        return fill_pdf_template(template_bytes, field_values, schema)
     return fill_template(template_bytes, schema, field_values)

@@ -48,7 +48,7 @@ async def list_templates() -> list[TemplateResponse]:
     return blob_storage.list_templates()
 
 
-@router.delete("/{template_id}", status_code=204)
+@router.delete("/{template_id:path}", status_code=204)
 async def delete_template(template_id: str) -> None:
     """Delete a template and its schema."""
     try:
@@ -57,7 +57,7 @@ async def delete_template(template_id: str) -> None:
         raise HTTPException(status_code=404, detail=str(e))
 
 
-@router.post("/{template_id}/extract-schema", response_model=ExtractSchemaResponse)
+@router.post("/{template_id:path}/extract-schema", response_model=ExtractSchemaResponse)
 async def extract_schema(template_id: str) -> ExtractSchemaResponse:
     """Run or re-run schema extraction (Pass 1) on a template."""
     try:
@@ -75,7 +75,7 @@ async def extract_schema(template_id: str) -> ExtractSchemaResponse:
     )
 
 
-@router.get("/{template_id}/schema")
+@router.get("/{template_id:path}/schema")
 async def get_schema(template_id: str) -> dict:
     """Get the extracted schema for a template."""
     schema = services.get_schema(template_id)
