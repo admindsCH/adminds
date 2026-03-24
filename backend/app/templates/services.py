@@ -170,5 +170,3 @@ def get_schema(template_id: str) -> TemplateSchema | None:
     if data is None:
         return None
     return TemplateSchema(**data)
-
-
