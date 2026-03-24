@@ -18,9 +18,6 @@ W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
 NS = {"w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main"}
 
 
-# ── Public API ───────────────────────────────────────────
-
-
 def fill_template(
     template_bytes: bytes,
     schema: TemplateSchema,
@@ -57,9 +54,6 @@ def fill_template(
     buf = io.BytesIO()
     doc.save(buf)
     return buf.getvalue()
-
-
-# ── Dispatch by slot type ────────────────────────────────
 
 
 def _fill_form_field(
@@ -129,9 +123,6 @@ def _fill_header_label(
         _replace_cell_label(tables[table_index], row, col, original, value)
     else:
         _add_text_to_cell(tables[table_index], row, col, value)
-
-
-# ── XML helpers ──
 
 
 def _set_form_field_text(ff: etree._Element, value: str) -> None:

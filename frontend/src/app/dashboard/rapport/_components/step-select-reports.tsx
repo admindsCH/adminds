@@ -3,13 +3,6 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { Badge } from "@/components/badge";
 import { Text } from "@/components/text";
-import {
-  CANTONS,
-  MOCK_INSURANCES,
-  DOCUMENT_TYPE_CATEGORIES,
-  type Canton,
-  type DocumentTypeCategory,
-} from "@/lib/mock-data";
 import { api, type TemplateResponse } from "@/lib/api";
 import clsx from "clsx";
 
@@ -54,6 +47,18 @@ const CATEGORY_BADGE: Record<string, "indigo" | "sky" | "amber" | "purple" | "zi
   "rapport-perte-gain": "purple",
 };
 
+const CATEGORY_LABELS: Record<string, string> = {
+  "rapport-ai": "Rapport AI",
+  "rapport-medical": "Rapport médical",
+  "rapport-assurance": "Rapport assurance",
+  "rapport-perte-gain": "Perte de gain",
+};
+
+/** Capitalize first letter: "fribourg" → "Fribourg" */
+function capitalize(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
 // ── Document Row ────────────────────────────────────────
 
 function DocumentRow({
@@ -65,9 +70,8 @@ function DocumentRow({
   isSelected: boolean;
   onToggle: () => void;
 }) {
-  const insurance = MOCK_INSURANCES.find((i) => i.id === template.insurance_id);
-  const categoryLabel = DOCUMENT_TYPE_CATEGORIES.find((c) => c.value === template.category)?.label ?? template.category;
-  const cantonLabel = template.canton === "all" ? null : CANTONS.find((c) => c.value === template.canton)?.label;
+  const categoryLabel = CATEGORY_LABELS[template.category] ?? template.category;
+  const cantonLabel = template.canton === "all" ? null : capitalize(template.canton);
 
   return (
     <button
@@ -84,7 +88,7 @@ function DocumentRow({
       </div>
       <div className="flex shrink-0 items-center gap-2">
         {cantonLabel && <Badge color="zinc">{cantonLabel}</Badge>}
-        {insurance && <Badge color="zinc">{insurance.name}</Badge>}
+        {template.insurance_name && <Badge color="zinc">{template.insurance_name}</Badge>}
         <Badge color={CATEGORY_BADGE[template.category] ?? "zinc"}>{categoryLabel}</Badge>
         {!template.has_schema && (
           <Badge color="amber">En cours</Badge>
@@ -104,8 +108,8 @@ function DocumentRow({
 // ── Main Component ──────────────────────────────────────
 
 interface StepSelectReportsProps {
-  canton: Canton;
-  onCantonChange: (canton: Canton) => void;
+  canton: string;
+  onCantonChange: (canton: string) => void;
   selectedTemplates: TemplateResponse[];
   onSelectedTemplatesChange: React.Dispatch<React.SetStateAction<TemplateResponse[]>>;
 }
@@ -120,7 +124,7 @@ export function StepSelectReports({
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState<DocumentTypeCategory | "all">("all");
+  const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [selectedInsurance, setSelectedInsurance] = useState<string | "all">("all");
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -140,6 +144,20 @@ export function StepSelectReports({
     return () => { cancelled = true; };
   }, []);
 
+  // Derive filter options from loaded templates
+  const availableCantons = useMemo(
+    () => [...new Set(templates.map((t) => t.canton).filter((c) => c !== "all"))].sort(),
+    [templates],
+  );
+  const availableCategories = useMemo(
+    () => [...new Set(templates.map((t) => t.category))].sort(),
+    [templates],
+  );
+  const availableInsurances = useMemo(
+    () => [...new Map(templates.filter((t) => t.insurance_id).map((t) => [t.insurance_id, t.insurance_name])).entries()].sort((a, b) => a[0].localeCompare(b[0])),
+    [templates],
+  );
+
   const hasActiveFilters = searchQuery !== "" || selectedCategory !== "all" || selectedInsurance !== "all";
 
   const filteredTemplates = useMemo(() => {
@@ -149,8 +167,7 @@ export function StepSelectReports({
       if (selectedInsurance !== "all" && t.insurance_id !== selectedInsurance) return false;
       if (searchQuery) {
         const q = searchQuery.toLowerCase();
-        const insurance = MOCK_INSURANCES.find((i) => i.id === t.insurance_id);
-        const searchable = `${t.name} ${t.description} ${insurance?.name ?? ""}`.toLowerCase();
+        const searchable = `${t.name} ${t.description} ${t.insurance_name}`.toLowerCase();
         if (!searchable.includes(q)) return false;
       }
       return true;
@@ -241,11 +258,11 @@ export function StepSelectReports({
           <span className="text-xs text-zinc-500">Canton</span>
           <select
             value={canton}
-            onChange={(e) => onCantonChange(e.target.value as Canton)}
+            onChange={(e) => onCantonChange(e.target.value)}
             className="border-none bg-transparent p-0 text-xs font-medium text-zinc-900 focus:outline-none"
           >
-            {CANTONS.map((c) => (
-              <option key={c.value} value={c.value}>{c.label}</option>
+            {availableCantons.map((c) => (
+              <option key={c} value={c}>{capitalize(c)}</option>
             ))}
           </select>
         </div>
@@ -264,19 +281,19 @@ export function StepSelectReports({
         >
           Tous
         </button>
-        {DOCUMENT_TYPE_CATEGORIES.map((c) => (
+        {availableCategories.map((c) => (
           <button
-            key={c.value}
+            key={c}
             type="button"
-            onClick={() => setSelectedCategory(c.value)}
+            onClick={() => setSelectedCategory(c)}
             className={clsx(
               "rounded-lg px-3.5 py-2 text-xs font-medium transition-colors",
-              selectedCategory === c.value
+              selectedCategory === c
                 ? "bg-zinc-900 text-white"
                 : "bg-white text-zinc-600 border border-zinc-200 hover:bg-zinc-50"
             )}
           >
-            {c.label}
+            {CATEGORY_LABELS[c] ?? c}
           </button>
         ))}
 
@@ -290,8 +307,8 @@ export function StepSelectReports({
             className="border-none bg-transparent p-0 text-xs font-medium text-zinc-900 focus:outline-none"
           >
             <option value="all">Toutes</option>
-            {MOCK_INSURANCES.map((ins) => (
-              <option key={ins.id} value={ins.id}>{ins.name}</option>
+            {availableInsurances.map(([id, name]) => (
+              <option key={id} value={id}>{name || id}</option>
             ))}
           </select>
         </div>

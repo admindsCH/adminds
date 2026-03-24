@@ -112,6 +112,7 @@ export interface TemplateResponse {
   description: string;
   category: string;
   insurance_id: string;
+  insurance_name: string;
   canton: string;
   estimated_minutes: number;
   page_count: number;

@@ -119,6 +119,7 @@ class TemplateResponse(BaseModel):
     description: str = ""
     category: str = "rapport-ai"
     insurance_id: str = ""
+    insurance_name: str = ""
     canton: str = "all"
     estimated_minutes: int = 5
     page_count: int = 1

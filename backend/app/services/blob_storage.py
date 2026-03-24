@@ -11,13 +11,14 @@ interface so the library can be served directly from blob storage.
 from __future__ import annotations
 
 import json
-import unicodedata
 from typing import Any
+from urllib.parse import quote, unquote
 
 from azure.storage.blob import BlobServiceClient, ContainerClient
 from loguru import logger
 
 from app.config import settings
+from app.templates.schemas import TemplateResponse
 
 # Container names
 TEMPLATES_CONTAINER = "templates"
@@ -42,23 +43,22 @@ def _sanitize_metadata(metadata: dict[str, str]) -> dict[str, str]:
     """Sanitize metadata keys/values for Azure Blob Storage.
 
     Azure requires: ASCII-only values, C-identifier keys (no hyphens).
-    We normalize unicode (é→e) and strip non-ASCII chars.
+    We URL-encode values so unicode chars (é, ü, etc.) survive the round-trip.
+    Use _desanitize_metadata to decode back to the original values.
     """
     clean: dict[str, str] = {}
     for key, value in metadata.items():
         # Keys: replace hyphens/spaces with underscores
         clean_key = key.replace("-", "_").replace(" ", "_")
-        # Values: normalize unicode then strip non-ASCII
-        if value is None:
-            clean_value = ""
-        else:
-            normalized = unicodedata.normalize("NFKD", str(value))
-            clean_value = normalized.encode("ascii", "ignore").decode("ascii")
+        # Values: URL-encode to keep them ASCII-safe but lossless
+        clean_value = quote(str(value), safe="") if value is not None else ""
         clean[clean_key] = clean_value
     return clean
 
 
-# ── Template operations ─────────────────────────────────
+def _desanitize_metadata(metadata: dict[str, str]) -> dict[str, str]:
+    """Decode URL-encoded metadata values back to their original unicode form."""
+    return {key: unquote(value) for key, value in metadata.items()}
 
 
 def upload_template(
@@ -136,39 +136,35 @@ def delete_template(template_id: str) -> None:
         logger.info(f"Deleted schema for '{template_id}'")
 
 
-def list_templates() -> list[dict[str, Any]]:
-    """List all templates with their metadata.
-
-    Returns a list of dicts matching the frontend DocumentTemplate shape:
-        { id, name, description, category, insuranceId, canton,
-          estimatedMinutes, pageCount, isOfficial, hasSchema }
-    """
+def list_templates() -> list[TemplateResponse]:
+    """List all templates with their metadata."""
     container = _get_container(TEMPLATES_CONTAINER)
     schemas_container = _get_container(SCHEMAS_CONTAINER)
 
-    # Collect existing schema IDs for the hasSchema flag
+    # Collect existing schema IDs for the has_schema flag
     schema_ids = set()
     for blob in schemas_container.list_blobs():
         schema_ids.add(blob.name)
 
-    templates = []
+    templates: list[TemplateResponse] = []
     for blob in container.list_blobs(include=["metadata"]):
-        meta = blob.metadata or {}
+        meta = _desanitize_metadata(blob.metadata or {})
         templates.append(
-            {
-                "id": blob.name,
-                "name": meta.get("name", blob.name),
-                "description": meta.get("description", ""),
-                "category": meta.get("category", "rapport-ai"),
-                "insuranceId": meta.get("insurance_id", ""),
-                "canton": meta.get("canton", "all"),
-                "estimatedMinutes": int(meta.get("estimated_minutes", "5")),
-                "pageCount": int(meta.get("page_count", "1")),
-                "isOfficial": meta.get("is_official", "false").lower() == "true",
-                "hasSchema": blob.name in schema_ids,
-                "filename": meta.get("original_filename", ""),
-                "size": blob.size,
-            }
+            TemplateResponse(
+                id=blob.name,
+                name=meta.get("name", blob.name),
+                description=meta.get("description", ""),
+                category=meta.get("category", "rapport-ai"),
+                insurance_id=meta.get("insurance_id", ""),
+                insurance_name=meta.get("insurance_name", ""),
+                canton=meta.get("canton", "all"),
+                estimated_minutes=int(meta.get("estimated_minutes", "5")),
+                page_count=int(meta.get("page_count", "1")),
+                is_official=meta.get("is_official", "false").lower() == "true",
+                has_schema=blob.name in schema_ids,
+                filename=meta.get("original_filename", ""),
+                size=blob.size,
+            )
         )
 
     return templates
@@ -179,10 +175,7 @@ def get_template_metadata(template_id: str) -> dict[str, str]:
     container = _get_container(TEMPLATES_CONTAINER)
     blob = container.get_blob_client(template_id)
     props = blob.get_blob_properties()
-    return props.metadata or {}
-
-
-# ── Schema operations ────────────────────────────────────
+    return _desanitize_metadata(props.metadata or {})
 
 
 def upload_schema(template_id: str, schema: dict[str, Any]) -> str:
@@ -224,9 +217,6 @@ def has_schema(template_id: str) -> bool:
     """Check if a schema exists for a given template."""
     container = _get_container(SCHEMAS_CONTAINER)
     return container.get_blob_client(template_id).exists()
-
-
-# ── Private helpers ──────────────────────────────────────
 
 
 def _content_settings(content_type: str):

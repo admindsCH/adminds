@@ -5,10 +5,6 @@ import { Button } from "@/components/button";
 import { Badge } from "@/components/badge";
 import { Text } from "@/components/text";
 import { Subheading } from "@/components/heading";
-import {
-  MOCK_INSURANCES,
-  type Canton,
-} from "@/lib/mock-data";
 import { api, type TemplateResponse } from "@/lib/api";
 import type { FieldSchemaEntry } from "@/lib/schemas/report";
 import { renderAsync } from "docx-preview";
@@ -227,7 +223,7 @@ function DocumentDetailView({
   onBack,
 }: {
   item: CartItem;
-  canton: Canton;
+  canton: string;
   dossierId: string | null;
   onBack: () => void;
 }) {
@@ -331,7 +327,7 @@ function DocumentDetailView({
     win.onload = () => { win.print(); win.close(); };
   }, [item.template.name]);
 
-  const insurance = MOCK_INSURANCES.find((i) => i.id === item.template.insurance_id);
+  const insuranceName = item.template.insurance_name;
   const hasEditor = result && editorSections.length > 0;
 
   return (
@@ -349,7 +345,7 @@ function DocumentDetailView({
           <div>
             <div className="flex items-center gap-2">
               <Subheading>{item.template.name}</Subheading>
-              <Badge color="zinc">{insurance?.name ?? "—"}</Badge>
+              <Badge color="zinc">{insuranceName || "—"}</Badge>
             </div>
             <Text className="mt-0.5">Document généré</Text>
           </div>
@@ -483,7 +479,7 @@ function GenerationView({
 
       <ul className="mt-8 space-y-3">
         {cart.map((item) => {
-          const insurance = MOCK_INSURANCES.find((i) => i.id === item.template.insurance_id);
+          const insuranceName = item.template.insurance_name;
           const isDone = item.status === "done";
 
           return (
@@ -501,7 +497,7 @@ function GenerationView({
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <p className="text-sm font-medium text-zinc-900">{item.template.name}</p>
-                    <Badge color="zinc">{insurance?.name ?? "—"}</Badge>
+                    <Badge color="zinc">{insuranceName || "—"}</Badge>
                   </div>
                   <p
                     className={clsx(
@@ -540,7 +536,7 @@ function GenerationView({
 
 interface StepGenerateProps {
   selectedTemplates: TemplateResponse[];
-  canton: Canton;
+  canton: string;
   dossierId: string | null;
 }
 
@@ -628,7 +624,7 @@ export function StepGenerate({ selectedTemplates, canton, dossierId }: StepGener
     return (
       <DocumentDetailView
         item={viewingItem}
-        canton={viewingItem.template.canton === "all" ? canton : viewingItem.template.canton as Canton}
+        canton={viewingItem.template.canton === "all" ? canton : viewingItem.template.canton}
         dossierId={dossierId}
         onBack={() => setViewingTemplateId(null)}
       />

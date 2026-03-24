@@ -6,7 +6,7 @@ from fastapi import APIRouter, File, HTTPException, UploadFile
 
 from app.services import blob_storage
 from app.templates import services
-from app.templates.schemas import ExtractSchemaResponse, TemplateResponse
+from app.templates.schemas import ExtractSchemaResponse, TemplateResponse  # noqa: F401 — used in response_model
 
 router = APIRouter(prefix="/templates", tags=["templates"])
 
@@ -45,7 +45,7 @@ async def upload_template(
 @router.get("", response_model=list[TemplateResponse])
 async def list_templates() -> list[TemplateResponse]:
     """List all available templates."""
-    return services.list_all_templates()
+    return blob_storage.list_templates()
 
 
 @router.delete("/{template_id}", status_code=204)

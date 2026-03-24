@@ -1,7 +1,7 @@
 import { useCallback } from "react";
 import { Subheading } from "@/components/heading";
 import { Text } from "@/components/text";
-import type { WizardDocument } from "@/lib/mock-data";
+import type { WizardDocument } from "../_types";
 import type { CategoryType } from "@/lib/schemas/classification";
 import { useFileUpload } from "../_hooks/use-file-upload";
 import { DocumentListItem } from "./document-list-item";

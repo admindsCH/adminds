@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef } from "react";
-import type { WizardDocument } from "@/lib/mock-data";
+import type { WizardDocument } from "../_types";
 import { api } from "@/lib/api";
 
 /**

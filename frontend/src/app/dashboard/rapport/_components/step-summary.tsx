@@ -22,7 +22,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { motion, AnimatePresence, LayoutGroup } from "motion/react";
-import type { WizardDocument } from "@/lib/mock-data";
+import type { WizardDocument } from "../_types";
 import type {
   PatientDossier,
   PatientDossierPatch,

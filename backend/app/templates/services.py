@@ -118,6 +118,7 @@ async def upload_and_extract(
         description=metadata.get("description", ""),
         category=metadata.get("category", "rapport-ai"),
         insurance_id=metadata.get("insurance_id", ""),
+        insurance_name=metadata.get("insurance_name", ""),
         canton=metadata.get("canton", "all"),
         estimated_minutes=int(metadata.get("estimated_minutes", "5")),
         page_count=int(metadata.get("page_count", "1")),
@@ -171,23 +172,3 @@ def get_schema(template_id: str) -> TemplateSchema | None:
     return TemplateSchema(**data)
 
 
-def list_all_templates() -> list[TemplateResponse]:
-    """List all templates from blob storage."""
-    raw = blob_storage.list_templates()
-    return [
-        TemplateResponse(
-            id=t["id"],
-            name=t.get("name") or "Sans nom",
-            description=t.get("description") or "",
-            category=t.get("category") or "rapport-ai",
-            insurance_id=t.get("insuranceId") or "",
-            canton=t.get("canton") or "all",
-            estimated_minutes=t.get("estimatedMinutes") or 5,
-            page_count=t.get("pageCount") or 1,
-            is_official=t.get("isOfficial") or False,
-            has_schema=t.get("hasSchema") or False,
-            filename=t.get("filename") or "",
-            size=t.get("size") or 0,
-        )
-        for t in raw
-    ]

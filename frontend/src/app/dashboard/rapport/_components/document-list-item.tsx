@@ -1,6 +1,6 @@
 import { Badge } from "@/components/badge";
 import { CATEGORY_LABELS, CATEGORY_COLORS, type CategoryType } from "@/lib/schemas/classification";
-import type { WizardDocument } from "@/lib/mock-data";
+import type { WizardDocument } from "../_types";
 
 // ── Helpers ──────────────────────────────────────────────
 

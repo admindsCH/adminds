@@ -5,7 +5,7 @@ import { useUser } from "@clerk/nextjs";
 import { Heading } from "@/components/heading";
 import { Text } from "@/components/text";
 import { Button } from "@/components/button";
-import type { Canton, WizardDocument } from "@/lib/mock-data";
+import type { WizardDocument } from "./_types";
 import type { TemplateResponse } from "@/lib/api";
 import type { PatientDossier } from "@/lib/schemas/classification";
 import { WizardStepper, TOTAL_STEPS } from "./_components/wizard-stepper";
@@ -37,8 +37,8 @@ export default function RapportPage() {
 
   // Cross-step state
   const [step, setStep] = useState(0);
-  const [canton, setCanton] = useState<Canton>(
-    (user?.unsafeMetadata?.canton as Canton) || "fribourg"
+  const [canton, setCanton] = useState<string>(
+    (user?.unsafeMetadata?.canton as string) || "fribourg"
   );
 
   // Step 0: selected report templates
@@ -76,7 +76,7 @@ export default function RapportPage() {
   // Sync canton from Clerk metadata when it loads
   useEffect(() => {
     if (user?.unsafeMetadata?.canton) {
-      setCanton(user.unsafeMetadata.canton as Canton);
+      setCanton(user.unsafeMetadata.canton as string);
     }
   }, [user?.unsafeMetadata?.canton]);
 

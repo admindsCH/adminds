@@ -357,7 +357,7 @@ def _extract_table_slots(root: etree._Element) -> list[RawSlot]:
 
         header_texts = _get_row_texts(rows[0])
         choice_columns = _detect_choice_grid(header_texts)
-        table_context = _get_preceding_text(table, max_chars=100)
+        table_context = _get_preceding_text(table)
 
         for row_idx, row in enumerate(rows):
             cells = row.findall(f"{W}tc")
@@ -456,14 +456,15 @@ def _get_parent_paragraph(element: etree._Element) -> etree._Element | None:
     return None
 
 
-def _get_element_context(element: etree._Element, max_chars: int = 150) -> str:
+def _get_element_context(element: etree._Element) -> str:
+    """Get context around a form field element — no truncation."""
     p = _get_parent_paragraph(element)
     if p is None:
         return ""
     parts: list[str] = []
     parent = p.getparent()
     if parent is None:
-        return _get_paragraph_text(p)[:max_chars]
+        return _get_paragraph_text(p)
     found = False
     for sibling in parent:
         if sibling is p:
@@ -478,23 +479,35 @@ def _get_element_context(element: etree._Element, max_chars: int = 150) -> str:
                 else:
                     parts.append(text)
                     break
-    return " | ".join(parts[-4:])[:max_chars]
+    return " | ".join(parts[-4:])
 
 
 def _get_paragraph_text(p: etree._Element) -> str:
     return " ".join(t.text for t in p.findall(f".//{W}t") if t.text)
 
 
-def _get_preceding_text(element: etree._Element, max_chars: int = 100) -> str:
+def _get_preceding_text(element: etree._Element) -> str:
+    """Get ALL text between the previous table and *element*.
+
+    Walks backwards through siblings, collecting paragraph text until
+    another ``<w:tbl>`` (or the document start) is reached.  This gives
+    the complete question text that precedes an answer table — including
+    question numbers, sub-questions, and instructions — so the LLM
+    labeler can unambiguously identify the field.
+    """
     parent = element.getparent()
     if parent is None:
         return ""
-    preceding: list[str] = []
+    # Collect paragraphs between the previous table and this element
+    paragraphs: list[str] = []
     for sibling in parent:
         if sibling is element:
             break
-        if sibling.tag == f"{W}p":
+        if sibling.tag == f"{W}tbl":
+            # Reset: only keep text AFTER the most recent table
+            paragraphs = []
+        elif sibling.tag == f"{W}p":
             text = _get_paragraph_text(sibling).strip()
             if text:
-                preceding.append(text)
-    return " | ".join(preceding[-2:])[:max_chars]
+                paragraphs.append(text)
+    return " | ".join(paragraphs)
