@@ -9,8 +9,10 @@ All report generation goes through the generic template engine:
 
 from __future__ import annotations
 
+import asyncio
 import base64
 import json
+from collections import defaultdict
 from typing import Any
 
 from fastapi import HTTPException
@@ -87,6 +89,36 @@ def _build_patient_context(dossier: PatientDossier) -> str:
     return "\n\n".join(parts)
 
 
+async def _generate_section(
+    section_name: str,
+    section_fields: list[dict[str, Any]],
+    canton_name: str,
+    patient_context: str,
+) -> dict[str, Any]:
+    """Call the LLM for a single section's fields.
+
+    Returns a dict mapping field IDs to generated values.
+    """
+    system_prompt = build_system_prompt(
+        canton_name=canton_name,
+        field_schema=json.dumps(section_fields, ensure_ascii=False, indent=2),
+    )
+
+    model = get_model(model_kwargs={"response_format": {"type": "json_object"}})
+    response = await model.ainvoke(
+        [
+            SystemMessage(content=system_prompt),
+            HumanMessage(content=patient_context),
+        ]
+    )
+
+    values = json.loads(response.content)
+    values = {k: v for k, v in values.items() if v is not None}
+
+    logger.info(f"Section '{section_name}': {len(values)} fields filled")
+    return values
+
+
 async def generate_report(
     dossier_id: str,
     canton: str,
@@ -124,27 +156,30 @@ async def generate_report(
     # 4. Build prompt schema (strip positions)
     prompt_schema = schema.to_prompt_schema()
 
-    system_prompt = build_system_prompt(
-        canton_name=schema.template_name,
-        field_schema=json.dumps(prompt_schema, ensure_ascii=False, indent=2),
-    )
+    # 5. Group fields by section and generate in parallel
+    section_groups: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for entry in prompt_schema:
+        section_groups[entry["section"]].append(entry)
 
     logger.info(
         f"Generating report: template_id={template_id}, "
-        f"dossier_id={dossier_id}, {len(prompt_schema)} fields"
+        f"dossier_id={dossier_id}, {len(prompt_schema)} fields "
+        f"across {len(section_groups)} sections"
     )
 
-    # 5. Call LLM
-    model = get_model(model_kwargs={"response_format": {"type": "json_object"}})
-    response = await model.ainvoke(
-        [
-            SystemMessage(content=system_prompt),
-            HumanMessage(content=patient_context),
-        ]
-    )
+    section_results = await asyncio.gather(*(
+        _generate_section(
+            section_name=section_name,
+            section_fields=section_fields,
+            canton_name=schema.template_name,
+            patient_context=patient_context,
+        )
+        for section_name, section_fields in section_groups.items()
+    ))
 
-    field_values: dict[str, Any] = json.loads(response.content)
-    field_values = {k: v for k, v in field_values.items() if v is not None}
+    field_values: dict[str, Any] = {}
+    for section_vals in section_results:
+        field_values.update(section_vals)
 
     logger.info(f"LLM returned {len(field_values)} field values")
 
