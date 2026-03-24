@@ -8,6 +8,8 @@ from app.report import services
 from app.report.schemas import (
     GenerateReportRequest,
     GenerateReportResponse,
+    RegenerateFieldRequest,
+    RegenerateFieldResponse,
     UpdateReportRequest,
     UpdateReportResponse,
 )
@@ -38,3 +40,12 @@ async def update_report(request: UpdateReportRequest) -> UpdateReportResponse:
         request.dossier_id, request.canton, request.field_values, request.template_id
     )
     return UpdateReportResponse(**result)
+
+
+@router.post("/regenerate-field", response_model=RegenerateFieldResponse)
+async def regenerate_field(request: RegenerateFieldRequest) -> RegenerateFieldResponse:
+    """Regenerate a single field with optional doctor instructions."""
+    result = await services.regenerate_field(
+        request.dossier_id, request.template_id, request.field_id, request.instruction
+    )
+    return RegenerateFieldResponse(**result)

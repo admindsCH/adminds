@@ -135,3 +135,9 @@ class ExtractSchemaResponse(BaseModel):
     template_id: str
     field_count: int
     sections: list[str]
+
+
+class UpdateSchemaRequest(BaseModel):
+    """Request body for PUT /api/templates/{template_id}/schema."""
+
+    fields: list[SchemaField]

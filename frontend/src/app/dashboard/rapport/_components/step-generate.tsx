@@ -156,6 +156,14 @@ function buildEditorSections(
 
 // ── Editor Section Panel ────────────────────────────────
 
+function RegenerateIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456ZM16.894 20.567 16.5 21.75l-.394-1.183a2.25 2.25 0 0 0-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 0 0 1.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 0 0 1.423 1.423l1.183.394-1.183.394a2.25 2.25 0 0 0-1.423 1.423Z" />
+    </svg>
+  );
+}
+
 function EditorSectionPanel({
   section,
   editedValues,
@@ -163,6 +171,9 @@ function EditorSectionPanel({
   isCollapsed,
   onToggle,
   onUpdate,
+  dossierId,
+  templateId,
+  onFieldRegenerated,
 }: {
   section: EditorSection;
   editedValues: Record<string, string>;
@@ -170,7 +181,29 @@ function EditorSectionPanel({
   isCollapsed: boolean;
   onToggle: () => void;
   onUpdate: () => void;
+  dossierId: string | null;
+  templateId: string;
+  onFieldRegenerated: (fieldId: string, value: string) => void;
 }) {
+  const [instructionFieldId, setInstructionFieldId] = useState<string | null>(null);
+  const [instructionText, setInstructionText] = useState("");
+  const [regeneratingFieldId, setRegeneratingFieldId] = useState<string | null>(null);
+
+  const handleRegenerate = useCallback(async (fieldId: string) => {
+    if (!dossierId) return;
+    setRegeneratingFieldId(fieldId);
+    try {
+      const result = await api.regenerateField(dossierId, templateId, fieldId, instructionText || undefined);
+      onFieldRegenerated(result.field_id, result.value);
+      setInstructionFieldId(null);
+      setInstructionText("");
+    } catch {
+      // Keep the instruction input open so user can retry
+    } finally {
+      setRegeneratingFieldId(null);
+    }
+  }, [dossierId, templateId, instructionText, onFieldRegenerated]);
+
   return (
     <div className="rounded-lg border border-zinc-200">
       <button
@@ -189,26 +222,73 @@ function EditorSectionPanel({
       {!isCollapsed && (
         <div className="border-t border-zinc-100 px-4 py-3">
           <div className="flex flex-col gap-4">
-            {section.fields.map((field) => (
-              <div key={field.id}>
-                <label className="mb-1 block text-xs font-medium text-zinc-500">{field.label}</label>
-                {field.type === "multiline" ? (
-                  <textarea
-                    value={editedValues[field.id] ?? ""}
-                    onChange={(e) => onFieldChange(field.id, e.target.value)}
-                    rows={4}
-                    className={INPUT_CLASS + " py-2"}
-                  />
-                ) : (
-                  <input
-                    type="text"
-                    value={editedValues[field.id] ?? ""}
-                    onChange={(e) => onFieldChange(field.id, e.target.value)}
-                    className={INPUT_CLASS}
-                  />
-                )}
-              </div>
-            ))}
+            {section.fields.map((field) => {
+              const isRegenerating = regeneratingFieldId === field.id;
+              const showInstruction = instructionFieldId === field.id;
+              return (
+                <div key={field.id}>
+                  <div className="mb-1 flex items-center justify-between">
+                    <label className="block text-xs font-medium text-zinc-500">{field.label}</label>
+                    {dossierId && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (showInstruction) { setInstructionFieldId(null); setInstructionText(""); }
+                          else { setInstructionFieldId(field.id); setInstructionText(""); }
+                        }}
+                        className={clsx(
+                          "rounded-md p-1 transition-colors",
+                          showInstruction
+                            ? "bg-indigo-100 text-indigo-600"
+                            : "text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600"
+                        )}
+                        title="Régénérer avec instructions"
+                      >
+                        <RegenerateIcon className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
+                  {showInstruction && (
+                    <div className="mb-2 flex gap-2">
+                      <input
+                        type="text"
+                        value={instructionText}
+                        onChange={(e) => setInstructionText(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === "Enter") handleRegenerate(field.id); }}
+                        placeholder="Ex: Insiste sur les troubles du sommeil..."
+                        className={clsx(INPUT_CLASS, "text-xs flex-1")}
+                        disabled={isRegenerating}
+                      />
+                      <Button
+                        outline
+                        onClick={() => handleRegenerate(field.id)}
+                        disabled={isRegenerating}
+                        className="shrink-0 !text-xs !px-2.5 !py-1"
+                      >
+                        {isRegenerating ? <SpinnerIcon className="h-3 w-3" /> : "Régénérer"}
+                      </Button>
+                    </div>
+                  )}
+                  {field.type === "multiline" ? (
+                    <textarea
+                      value={editedValues[field.id] ?? ""}
+                      onChange={(e) => onFieldChange(field.id, e.target.value)}
+                      rows={4}
+                      className={clsx(INPUT_CLASS, "py-2", isRegenerating && "opacity-50")}
+                      disabled={isRegenerating}
+                    />
+                  ) : (
+                    <input
+                      type="text"
+                      value={editedValues[field.id] ?? ""}
+                      onChange={(e) => onFieldChange(field.id, e.target.value)}
+                      className={clsx(INPUT_CLASS, isRegenerating && "opacity-50")}
+                      disabled={isRegenerating}
+                    />
+                  )}
+                </div>
+              );
+            })}
           </div>
           <div className="mt-3 flex justify-end">
             <Button outline onClick={onUpdate}>Mettre à jour</Button>
@@ -429,6 +509,9 @@ function DocumentDetailView({
                     isCollapsed={collapsedSections.has(section.id)}
                     onToggle={() => toggleSection(section.id)}
                     onUpdate={handleUpdate}
+                    dossierId={dossierId}
+                    templateId={item.template.id}
+                    onFieldRegenerated={(fieldId, value) => setEditedValues((prev) => ({ ...prev, [fieldId]: value }))}
                   />
                 ))}
               </div>

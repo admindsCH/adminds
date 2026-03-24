@@ -233,6 +233,57 @@ async def update_report(
     }
 
 
+async def regenerate_field(
+    dossier_id: str,
+    template_id: str,
+    field_id: str,
+    instruction: str | None = None,
+) -> dict[str, str]:
+    """Regenerate a single field using the patient dossier and optional instructions."""
+    dossier = store.get_dossier(dossier_id)
+    if dossier is None:
+        raise HTTPException(status_code=404, detail="Dossier introuvable")
+
+    schema = get_schema(template_id)
+    if schema is None:
+        raise HTTPException(status_code=400, detail="Schema non trouvé")
+
+    # Find the target field
+    field = next((f for f in schema.fields if f.id == field_id), None)
+    if field is None:
+        raise HTTPException(status_code=400, detail=f"Champ '{field_id}' introuvable")
+
+    # Build single-field prompt entry
+    entry: dict[str, Any] = {
+        "id": field.id,
+        "type": field.field_type,
+        "label": field.label,
+        "section": field.section,
+    }
+    if field.section_number:
+        entry["section_number"] = field.section_number
+    hint = field.hint or ""
+    if instruction:
+        hint = f"{hint}. INSTRUCTION DU MÉDECIN: {instruction}" if hint else f"INSTRUCTION DU MÉDECIN: {instruction}"
+    if hint:
+        entry["hint"] = hint
+    if field.options:
+        entry["options"] = field.options
+
+    patient_context = _build_patient_context(dossier)
+
+    result = await _generate_section(
+        section_name=field.section,
+        section_fields=[entry],
+        canton_name=schema.template_name,
+        patient_context=patient_context,
+    )
+
+    value = result.get(field_id, "")
+    logger.info(f"Regenerated field '{field_id}': {len(str(value))} chars")
+    return {"field_id": field_id, "value": str(value)}
+
+
 def _fill(schema, template_bytes: bytes, field_values: dict[str, Any]) -> bytes:
     """Fill a template based on its format (docx or pdf)."""
     if schema.template_format == "pdf":

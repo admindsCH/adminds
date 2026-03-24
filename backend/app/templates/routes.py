@@ -6,7 +6,7 @@ from fastapi import APIRouter, File, HTTPException, UploadFile
 
 from app.services import blob_storage
 from app.templates import services
-from app.templates.schemas import ExtractSchemaResponse, TemplateResponse  # noqa: F401 — used in response_model
+from app.templates.schemas import ExtractSchemaResponse, TemplateResponse, UpdateSchemaRequest  # noqa: F401 — used in response_model
 
 router = APIRouter(prefix="/templates", tags=["templates"])
 
@@ -84,4 +84,22 @@ async def get_schema(template_id: str) -> dict:
             status_code=404,
             detail="Schema non trouvé. Lancez l'extraction d'abord.",
         )
+    return schema.model_dump()
+
+
+@router.put("/{template_id:path}/schema")
+async def update_schema(template_id: str, request: UpdateSchemaRequest) -> dict:
+    """Update the schema for a template (edit labels, hints, delete fields)."""
+    schema = services.get_schema(template_id)
+    if schema is None:
+        raise HTTPException(status_code=404, detail="Schema non trouvé.")
+
+    # Validate unique IDs
+    ids = [f.id for f in request.fields]
+    dupes = [fid for fid in ids if ids.count(fid) > 1]
+    if dupes:
+        raise HTTPException(status_code=400, detail=f"IDs dupliqués: {set(dupes)}")
+
+    schema.fields = request.fields
+    blob_storage.upload_schema(template_id, schema.model_dump())
     return schema.model_dump()

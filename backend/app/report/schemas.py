@@ -56,3 +56,19 @@ class UpdateReportResponse(BaseModel):
     """Response from POST /api/update-report."""
 
     docx_base64: str
+
+
+class RegenerateFieldRequest(BaseModel):
+    """Request body for POST /api/regenerate-field."""
+
+    dossier_id: str
+    template_id: str
+    field_id: str
+    instruction: str | None = None
+
+
+class RegenerateFieldResponse(BaseModel):
+    """Response from POST /api/regenerate-field."""
+
+    field_id: str
+    value: str

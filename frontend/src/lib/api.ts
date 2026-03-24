@@ -91,6 +91,22 @@ export async function apiPostBlob(path: string, body?: unknown): Promise<Blob> {
   return response.blob();
 }
 
+export async function apiPut<T>(path: string, body?: unknown): Promise<T> {
+  const headers = await getAuthHeaders();
+  const response = await fetch(`${API_URL}${path}`, {
+    method: "PUT",
+    headers,
+    body: body ? JSON.stringify(body) : undefined,
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.detail || `API error: ${response.status}`);
+  }
+
+  return response.json();
+}
+
 export async function apiDelete(path: string): Promise<void> {
   const headers = await getAuthHeaders();
   const response = await fetch(`${API_URL}${path}`, {
@@ -126,6 +142,34 @@ export interface UserProfile {
   id: string;
   email: string;
   subscription_status: string | null;
+}
+
+export interface SchemaFieldResponse {
+  id: string;
+  slot_type: string;
+  position: Record<string, unknown>;
+  field_type: string;
+  label: string;
+  section: string;
+  section_number: string;
+  hint: string;
+  options: string[];
+  original_text: string | null;
+  choice_columns: Record<string, number> | null;
+  mapped_rubrique: string | null;
+}
+
+export interface TemplateSchemaResponse {
+  template_id: string;
+  template_name: string;
+  fields: SchemaFieldResponse[];
+  template_format: string;
+  extracted_at: string;
+}
+
+export interface RegenerateFieldResponse {
+  field_id: string;
+  value: string;
 }
 
 // API Functions
@@ -195,4 +239,21 @@ export const api = {
   /** Re-run schema extraction on a template. */
   extractSchema: (templateId: string): Promise<{ template_id: string; field_count: number; sections: string[] }> =>
     apiPost(`/api/templates/${templateId}/extract-schema`),
+
+  /** Fetch the schema for a template. */
+  getTemplateSchema: (templateId: string): Promise<TemplateSchemaResponse> =>
+    apiGet<TemplateSchemaResponse>(`/api/templates/${templateId}/schema`),
+
+  /** Update the schema for a template (edit labels, hints, delete fields). */
+  updateTemplateSchema: (templateId: string, fields: SchemaFieldResponse[]): Promise<TemplateSchemaResponse> =>
+    apiPut<TemplateSchemaResponse>(`/api/templates/${templateId}/schema`, { fields }),
+
+  /** Regenerate a single field with optional doctor instructions. */
+  regenerateField: (dossierId: string, templateId: string, fieldId: string, instruction?: string): Promise<RegenerateFieldResponse> =>
+    apiPost<RegenerateFieldResponse>("/api/regenerate-field", {
+      dossier_id: dossierId,
+      template_id: templateId,
+      field_id: fieldId,
+      instruction: instruction || null,
+    }),
 };
