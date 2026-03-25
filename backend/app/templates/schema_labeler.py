@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from langchain_core.messages import HumanMessage, SystemMessage
 from loguru import logger
 
-from app.services.azure_openai import get_model
+from app.services.azure_openai import ainvoke_throttled, get_model
 from app.templates.schemas import RawSlot, SchemaField, TemplateSchema
 
 # ── Rubrique keys (for the LLM to reference) ────────────
@@ -92,7 +92,8 @@ async def label_slots(
 
     # Call LLM in JSON mode
     model = get_model(model_kwargs={"response_format": {"type": "json_object"}})
-    response = await model.ainvoke(
+    response = await ainvoke_throttled(
+        model,
         [
             SystemMessage(
                 content=_LABELING_SYSTEM_PROMPT.format(
@@ -100,7 +101,7 @@ async def label_slots(
                 )
             ),
             HumanMessage(content=prompt),
-        ]
+        ],
     )
 
     # Parse response

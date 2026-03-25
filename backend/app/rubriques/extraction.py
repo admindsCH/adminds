@@ -26,7 +26,7 @@ from app.rubriques.models import (
     Rubriques,
 )
 from app.rubriques.prompts import PATIENT_INFO_PROMPT, RUBRIQUE_PROMPTS
-from app.services.azure_openai import get_model
+from app.services.azure_openai import ainvoke_throttled, get_model
 
 # Maps rubrique key → Pydantic model class for structured output.
 RUBRIQUE_MODELS: dict[str, type[BaseModel]] = {
@@ -49,11 +49,12 @@ async def _extract_rubrique(
     structured = get_model().with_structured_output(model_cls)
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore", category=UserWarning, module="pydantic")
-        result = await structured.ainvoke(
+        result = await ainvoke_throttled(
+            structured,
             [
                 SystemMessage(content=prompt),
                 HumanMessage(content=text),
-            ]
+            ],
         )
     logger.info(f"Extracted {key}")
     return key, result
@@ -65,11 +66,12 @@ async def _extract_patient_info(text: str) -> PatientInfo:
     structured = get_model().with_structured_output(PatientInfo)
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore", category=UserWarning, module="pydantic")
-        result = await structured.ainvoke(
+        result = await ainvoke_throttled(
+            structured,
             [
                 SystemMessage(content=PATIENT_INFO_PROMPT),
                 HumanMessage(content=text),
-            ]
+            ],
         )
     logger.info("Extracted patient_info")
     return result

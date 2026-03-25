@@ -23,7 +23,7 @@ from app.classification import store
 from app.classification.schemas import PatientDossier
 from app.report.constants import build_system_prompt
 from app.services import blob_storage
-from app.services.azure_openai import get_model
+from app.services.azure_openai import ainvoke_throttled, get_model
 from app.templates.generic_filler import fill_template
 from app.templates.pdf_filler import fill_pdf_template
 from app.templates.services import get_schema
@@ -105,11 +105,12 @@ async def _generate_section(
     )
 
     model = get_model(model_kwargs={"response_format": {"type": "json_object"}})
-    response = await model.ainvoke(
+    response = await ainvoke_throttled(
+        model,
         [
             SystemMessage(content=system_prompt),
             HumanMessage(content=patient_context),
-        ]
+        ],
     )
 
     try:

@@ -19,7 +19,7 @@ from docx import Document
 from langchain_core.messages import HumanMessage, SystemMessage
 from loguru import logger
 
-from app.services.azure_openai import get_model
+from app.services.azure_openai import ainvoke_throttled, get_model
 
 # Known insurance names → IDs
 _KNOWN_INSURANCES = {
@@ -81,11 +81,12 @@ async def classify_template(
     logger.info(f"Classifying template ({len(content)} chars of content)")
 
     model = get_model(model_kwargs={"response_format": {"type": "json_object"}})
-    response = await model.ainvoke(
+    response = await ainvoke_throttled(
+        model,
         [
             SystemMessage(content=_CLASSIFIER_PROMPT),
             HumanMessage(content=f"Contenu du formulaire:\n\n{content}"),
-        ]
+        ],
     )
 
     try:

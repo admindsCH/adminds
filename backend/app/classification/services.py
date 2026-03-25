@@ -15,7 +15,7 @@ from app.classification.schemas import (
     PatientDossierPatch,
 )
 from app.rubriques.extraction import extract_dossier
-from app.services.azure_openai import get_model
+from app.services.azure_openai import ainvoke_throttled, get_model
 
 
 # ---------------------------------------------------------------------------
@@ -34,11 +34,12 @@ async def classify_document(filename: str, file_bytes: bytes) -> ClassifiedDocum
     structured = get_model().with_structured_output(DocumentClassification)
 
     logger.info(f"Classifying '{filename}' ({len(text)} chars)...")
-    classification = await structured.ainvoke(
+    classification = await ainvoke_throttled(
+        structured,
         [
             SystemMessage(content=CLASSIFICATION_SYSTEM_PROMPT),
             HumanMessage(content=f"Document: {filename}\n\n{text}"),
-        ]
+        ],
     )
     logger.info(f"Classified '{filename}' → {classification.category}")
 
@@ -144,12 +145,13 @@ Ne fabrique JAMAIS d'information."""
 async def answer_dossier_question(question: str, raw_content: str) -> str:
     """Answer a free-form question about the patient dossier."""
     model = get_model()
-    response = await model.ainvoke(
+    response = await ainvoke_throttled(
+        model,
         [
             SystemMessage(content=_CHAT_SYSTEM_PROMPT),
             HumanMessage(
                 content=f"DOSSIER PATIENT:\n\n{raw_content}\n\n---\n\nQUESTION: {question}"
             ),
-        ]
+        ],
     )
     return response.content
