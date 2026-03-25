@@ -6,6 +6,7 @@ from pydantic import BaseModel
 class GenerateReportRequest(BaseModel):
     dossier_id: str
     template_id: str
+    doctor_name: str | None = None
 
 
 class FieldSchemaEntry(BaseModel):
@@ -57,6 +58,7 @@ class RegenerateFieldRequest(BaseModel):
     template_id: str
     field_id: str
     instruction: str | None = None
+    doctor_name: str | None = None
 
 
 class RegenerateFieldResponse(BaseModel):

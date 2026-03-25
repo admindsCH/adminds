@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import { Subheading } from "@/components/heading";
 import { Text } from "@/components/text";
 import type { WizardDocument } from "../_types";
@@ -37,6 +37,62 @@ function MicrophoneIcon({ className }: { className?: string }) {
         d="M12 18.75a6 6 0 0 0 6-6v-1.5m-6 7.5a6 6 0 0 1-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 0 1-3-3V4.5a3 3 0 1 1 6 0v8.25a3 3 0 0 1-3 3Z"
       />
     </svg>
+  );
+}
+
+// ── EHR Export Guide ─────────────────────────────────────
+
+type EhrSystem = "mediway" | "medicloud";
+
+const EHR_SYSTEMS: { id: EhrSystem; label: string }[] = [
+  { id: "mediway", label: "Mediway" },
+  { id: "medicloud", label: "Medicloud" },
+];
+
+const EHR_STEPS: Record<EhrSystem, string[]> = {
+  mediway: ["Fichier", "Exporter", "Dossier patient", "PDF / XML", "Enregistrer"],
+  medicloud: ["Fichier", "Exporter", "Sélectionner la période", "PDF", "Télécharger"],
+};
+
+function EhrExportGuide() {
+  const [active, setActive] = useState<EhrSystem | null>(null);
+
+  return (
+    <div className="mb-6 rounded-xl border border-zinc-200 bg-zinc-50/60 px-4 py-3">
+      <div className="flex flex-wrap items-center gap-3">
+        <span className="text-xs font-medium text-zinc-500">Comment exporter depuis :</span>
+        {EHR_SYSTEMS.map(({ id, label }) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => setActive((prev) => (prev === id ? null : id))}
+            className={clsx(
+              "rounded-full border px-3 py-1 text-xs font-medium transition-colors",
+              active === id
+                ? "border-indigo-300 bg-indigo-50 text-indigo-700"
+                : "border-zinc-200 bg-white text-zinc-600 hover:border-indigo-200 hover:text-indigo-600"
+            )}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {active && (
+        <div className="mt-3 flex flex-wrap items-center gap-1.5">
+          {EHR_STEPS[active].map((step, i) => (
+            <span key={i} className="flex items-center gap-1.5">
+              <span className="rounded-md border border-zinc-200 bg-white px-2.5 py-1 text-xs font-medium text-zinc-700 shadow-sm">
+                {step}
+              </span>
+              {i < EHR_STEPS[active].length - 1 && (
+                <span className="text-zinc-300">→</span>
+              )}
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -103,6 +159,8 @@ export function StepDocuments({ docs, onDocsChange, notes, onNotesChange, dateFr
           </button>
         )}
       </div>
+
+      <EhrExportGuide />
 
       {/* Drop zone — big, inviting, entire area clickable */}
       <div

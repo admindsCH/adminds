@@ -1,6 +1,11 @@
 from __future__ import annotations
 
+import asyncio
+import json
+from collections.abc import AsyncGenerator
+
 from fastapi import UploadFile
+from fastapi.responses import StreamingResponse
 from langchain_core.messages import HumanMessage, SystemMessage
 from loguru import logger
 
@@ -73,39 +78,6 @@ async def classify_documents(files: list[UploadFile]) -> list[ClassifiedDocument
     return results
 
 
-async def parse_dossier(files: list[UploadFile]) -> PatientDossier:
-    """Parse uploaded medical documents into a structured PatientDossier.
-
-    Extracts text from each file via LiteParse, concatenates with separators,
-    then runs 9 parallel LLM calls (8 rubriques + patient_info) for deep extraction.
-    """
-    text_parts: list[str] = []
-
-    for file in files:
-        file_bytes = await file.read()
-        filename = file.filename or "unknown"
-        text = extract_text(filename, file_bytes)
-        logger.info(f"File '{filename}' → {len(text)} chars extracted")
-        text_parts.append(f"--- Document: {filename} ---\n{text}")
-
-    combined_text = "\n\n".join(text_parts)
-
-    logger.info(
-        f"Parsing dossier: {len(files)} file(s), {len(combined_text)} total chars"
-    )
-
-    dossier = await extract_dossier(combined_text)
-
-    logger.info(f"Dossier parsed: {len(dossier.raw_content or '')} chars extracted")
-
-    return dossier
-
-
-async def parse_and_store_dossier(files: list[UploadFile]) -> DossierResponse:
-    """Parse files into a PatientDossier, store it, return with ID."""
-    dossier = await parse_dossier(files)
-    return crud.create_dossier(dossier)
-
 
 def get_dossier(dossier_id: str) -> DossierResponse:
     """Retrieve a stored dossier by ID."""
@@ -115,6 +87,58 @@ def get_dossier(dossier_id: str) -> DossierResponse:
 def patch_dossier(dossier_id: str, patch: PatientDossierPatch) -> DossierResponse:
     """Apply a partial update to a stored dossier."""
     return crud.patch_dossier(dossier_id, patch)
+
+
+def parse_dossier_stream(files: list[UploadFile]) -> StreamingResponse:
+    """Return an SSE StreamingResponse that emits progress as each rubrique is extracted."""
+    from app.rubriques.prompts import RUBRIQUE_PROMPTS
+
+    def sse(data: dict) -> str:
+        return f"data: {json.dumps(data)}\n\n"
+
+    async def generate() -> AsyncGenerator[str, None]:
+        # 1. Extract text from files
+        text_parts: list[str] = []
+        try:
+            for file in files:
+                file_bytes = await file.read()
+                filename = file.filename or "unknown"
+                text = extract_text(filename, file_bytes)
+                text_parts.append(f"--- Document: {filename} ---\n{text}")
+        except Exception as e:
+            yield sse({"type": "error", "message": str(e)})
+            return
+
+        combined_text = "\n\n".join(text_parts)
+        yield sse({"type": "progress", "step": "extraction"})
+
+        # 2. Queue receives a key each time a rubrique finishes
+        queue: asyncio.Queue[str] = asyncio.Queue()
+
+        async def on_step_done(key: str) -> None:
+            await queue.put(key)
+
+        # 3. Run all extractions concurrently in the background
+        extraction_task = asyncio.create_task(
+            extract_dossier(combined_text, on_step_done=on_step_done)
+        )
+
+        total_steps = len(RUBRIQUE_PROMPTS) + 1  # rubriques + patient_info
+        for _ in range(total_steps):
+            key = await queue.get()
+            yield sse({"type": "progress", "step": key})
+
+        dossier: PatientDossier = await extraction_task
+
+        # 4. Store and emit the final complete event
+        response = crud.create_dossier(dossier)
+        yield sse({"type": "complete", "dossier_id": response.dossier_id, "dossier": response.dossier.model_dump()})
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 async def answer_dossier_question(question: str, raw_content: str) -> ChatResponse:

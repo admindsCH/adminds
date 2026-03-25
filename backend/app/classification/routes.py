@@ -26,10 +26,10 @@ async def classify_one(file: UploadFile = File(...)) -> ClassifiedDocument:
     return await services.classify_document(file)
 
 
-@router.post("/parse-dossier", response_model=DossierResponse)
-async def parse_dossier(files: list[UploadFile] = File(...)) -> DossierResponse:
-    """Parse all uploaded documents into a structured patient dossier."""
-    return await services.parse_and_store_dossier(files)
+@router.post("/parse-dossier-stream")
+async def parse_dossier_stream(files: list[UploadFile] = File(...)):
+    """Parse documents and stream SSE progress events as each rubrique is extracted."""
+    return services.parse_dossier_stream(files)
 
 
 @router.get("/dossiers/{dossier_id}", response_model=DossierResponse)

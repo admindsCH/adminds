@@ -25,9 +25,12 @@ from app.templates.pdf_filler import fill_pdf_template
 from app.templates.services import get_schema
 
 
-def _build_patient_context(dossier: PatientDossier) -> str:
+def _build_patient_context(dossier: PatientDossier, doctor_name: str | None = None) -> str:
     """Serialize the dossier data into a readable text block for the LLM."""
     parts: list[str] = []
+
+    if doctor_name:
+        parts.append(f"MÉDECIN RÉDACTEUR (signataire du rapport, psychiatre traitant): {doctor_name}")
 
     if dossier.raw_content:
         parts.append(
@@ -123,6 +126,7 @@ async def _generate_section(
 async def generate_report(
     dossier_id: str,
     template_id: str,
+    doctor_name: str | None = None,
 ) -> GenerateReportResponse:
     """Generate a filled report from a stored dossier."""
     # 1. Fetch dossier
@@ -139,7 +143,7 @@ async def generate_report(
         )
 
     # 3. Build patient context
-    patient_context = _build_patient_context(dossier)
+    patient_context = _build_patient_context(dossier, doctor_name=doctor_name)
 
     # 4. Build prompt schema (strip positions)
     prompt_schema = schema.to_prompt_schema()
@@ -221,6 +225,7 @@ async def regenerate_field(
     template_id: str,
     field_id: str,
     instruction: str | None = None,
+    doctor_name: str | None = None,
 ) -> dict[str, str]:
     """Regenerate a single field using the patient dossier and optional instructions."""
     dossier = store.get_dossier(dossier_id)
@@ -257,7 +262,7 @@ async def regenerate_field(
     if field.options:
         entry["options"] = field.options
 
-    patient_context = _build_patient_context(dossier)
+    patient_context = _build_patient_context(dossier, doctor_name=doctor_name)
 
     result = await _generate_section(
         section_name=field.section,

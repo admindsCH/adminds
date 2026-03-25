@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import warnings
+from typing import Callable, Coroutine, Any
 
 from langchain_core.messages import HumanMessage, SystemMessage
 from loguru import logger
@@ -71,21 +72,38 @@ async def _extract_patient_info(text: str) -> PatientInfo:
     return result
 
 
-async def extract_dossier(combined_text: str) -> PatientDossier:
+async def extract_dossier(
+    combined_text: str,
+    on_step_done: Callable[[str], Coroutine[Any, Any, None]] | None = None,
+) -> PatientDossier:
     """Run all 9 extraction calls in parallel and assemble a PatientDossier.
 
     Args:
         combined_text: Concatenated text from all uploaded documents.
+        on_step_done: Optional async callback called with the step key when each
+                      extraction completes (used for SSE progress streaming).
 
     Returns:
         A fully populated PatientDossier with raw_content set.
     """
+    async def tracked_rubrique(key: str, prompt: str, model_cls: type[BaseModel]) -> tuple[str, BaseModel]:
+        result = await _extract_rubrique(key, prompt, model_cls, combined_text)
+        if on_step_done:
+            await on_step_done(key)
+        return result
+
+    async def tracked_patient_info() -> PatientInfo:
+        result = await _extract_patient_info(combined_text)
+        if on_step_done:
+            await on_step_done("patient_info")
+        return result
+
     # Build coroutines for all 8 rubriques + patient_info.
     tasks = [
-        _extract_rubrique(key, prompt, RUBRIQUE_MODELS[key], combined_text)
+        tracked_rubrique(key, prompt, RUBRIQUE_MODELS[key])
         for key, prompt in RUBRIQUE_PROMPTS.items()
     ]
-    tasks.append(_extract_patient_info(combined_text))
+    tasks.append(tracked_patient_info())
 
     # Run all 9 calls concurrently.
     results = await asyncio.gather(*tasks, return_exceptions=True)

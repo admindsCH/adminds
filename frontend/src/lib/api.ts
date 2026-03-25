@@ -183,11 +183,45 @@ export const api = {
     return apiPostFormData<ClassifiedDocument[]>("/api/classify", formData);
   },
 
-  /** Parse all uploaded files into a structured patient dossier. Returns dossier + server-side ID. */
-  parseDossier: (files: File[]): Promise<DossierResponse> => {
+  /** Parse dossier with SSE streaming. Calls onEvent for each progress event, resolves with final DossierResponse. */
+  parseDossierStream: async (
+    files: File[],
+    onEvent: (event: { type: string; step?: string }) => void,
+  ): Promise<import("@/lib/schemas/classification").DossierResponse> => {
     const formData = new FormData();
     files.forEach((f) => formData.append("files", f));
-    return apiPostFormData<DossierResponse>("/api/parse-dossier", formData);
+
+    const response = await fetch(`${API_URL}/api/parse-dossier-stream`, {
+      method: "POST",
+      body: formData,
+    });
+    if (!response.ok || !response.body) {
+      throw new Error(`API error: ${response.status}`);
+    }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n\n");
+      buffer = lines.pop() ?? "";
+      for (const chunk of lines) {
+        const dataLine = chunk.startsWith("data: ") ? chunk.slice(6) : null;
+        if (!dataLine) continue;
+        try {
+          const event = JSON.parse(dataLine);
+          if (event.type === "complete") return event as import("@/lib/schemas/classification").DossierResponse;
+          onEvent(event);
+        } catch {
+          // malformed chunk — skip
+        }
+      }
+    }
+    throw new Error("Stream ended without completion event");
   },
 
   /** Fetch a stored dossier by ID. */
@@ -199,11 +233,12 @@ export const api = {
     apiPatch<DossierResponse>(`/api/dossiers/${dossierId}`, patch),
 
   /** Generate a filled .docx report. Returns field values, schema, and base64 docx. */
-  generateReport: (dossierId: string, canton: string, templateId?: string): Promise<GenerateReportResponse> =>
+  generateReport: (dossierId: string, canton: string, templateId?: string, doctorName?: string): Promise<GenerateReportResponse> =>
     apiPost<GenerateReportResponse>("/api/generate-report", {
       dossier_id: dossierId,
       canton,
       template_id: templateId ?? null,
+      doctor_name: doctorName ?? null,
     }),
 
   /** Re-fill the docx template with user-edited field values. Returns updated base64 docx. */
@@ -249,11 +284,12 @@ export const api = {
     apiPut<TemplateSchemaResponse>(`/api/templates/${templateId}/schema`, { fields }),
 
   /** Regenerate a single field with optional doctor instructions. */
-  regenerateField: (dossierId: string, templateId: string, fieldId: string, instruction?: string): Promise<RegenerateFieldResponse> =>
+  regenerateField: (dossierId: string, templateId: string, fieldId: string, instruction?: string, doctorName?: string): Promise<RegenerateFieldResponse> =>
     apiPost<RegenerateFieldResponse>("/api/regenerate-field", {
       dossier_id: dossierId,
       template_id: templateId,
       field_id: fieldId,
       instruction: instruction || null,
+      doctor_name: doctorName ?? null,
     }),
 };

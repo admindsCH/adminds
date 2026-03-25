@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { Subheading } from "@/components/heading";
 import { Text } from "@/components/text";
 import { Badge } from "@/components/badge";
-import { Button } from "@/components/button";
 import {
   CheckCircle2,
   Circle,
@@ -211,39 +210,77 @@ const DIAG_TYPE_BADGE: Record<string, { color: "red" | "zinc" | "amber"; label: 
 
 // ── Progress checklist (shown during dossier parsing) ────
 
-const PROGRESS_STEPS = [
-  "Préparation des documents",
-  "Analyse du dossier (peut prendre quelques minutes)",
-  "Enregistrement",
+// Maps SSE step keys → display info (reuses RUBRIQUE_CONFIGS colors/icons)
+const STEP_META: Record<string, { label: string; Icon: React.ElementType; color: string; bgColor: string }> = {
+  extraction:        { label: "Lecture des documents",   Icon: Activity,    color: "text-zinc-500",   bgColor: "bg-zinc-100" },
+  patient_info:      { label: "Informations patient",    Icon: Activity,    color: "text-indigo-600", bgColor: "bg-indigo-50" },
+  r01_historique:    { label: "Historique",              Icon: Clock,       color: "text-orange-600", bgColor: "bg-orange-50" },
+  r02_clinique:      { label: "Clinique",                Icon: Stethoscope, color: "text-blue-600",   bgColor: "bg-blue-50" },
+  r03_traitement:    { label: "Traitement",              Icon: Pill,        color: "text-purple-600", bgColor: "bg-purple-50" },
+  r04_professionnel: { label: "Professionnel",           Icon: Briefcase,   color: "text-green-600",  bgColor: "bg-green-50" },
+  r05_capacite_travail: { label: "Capacité de travail", Icon: Gauge,       color: "text-red-600",    bgColor: "bg-red-50" },
+  r06_readaptation:  { label: "Réadaptation",            Icon: RotateCcw,   color: "text-teal-600",   bgColor: "bg-teal-50" },
+  r07_freins_cognition: { label: "Freins & Cognition",  Icon: Brain,       color: "text-violet-600", bgColor: "bg-violet-50" },
+  r08_activites:     { label: "Activités",               Icon: Activity,    color: "text-emerald-600",bgColor: "bg-emerald-50" },
+  saving:            { label: "Enregistrement",          Icon: CheckCircle2,color: "text-zinc-500",   bgColor: "bg-zinc-100" },
+};
+
+const STEP_ORDER = [
+  "extraction",
+  "r01_historique", "r02_clinique", "r03_traitement", "r04_professionnel",
+  "r05_capacite_travail", "r06_readaptation", "r07_freins_cognition", "r08_activites",
+  "patient_info", "saving",
 ];
 
-function ProgressChecklist({ currentStep }: { currentStep: number }) {
+function StreamingProgress({ doneSteps }: { doneSteps: Set<string> }) {
+  const activeKey = STEP_ORDER.find((s) => !doneSteps.has(s)) ?? STEP_ORDER[STEP_ORDER.length - 1];
+  const meta = STEP_META[activeKey];
+  const { Icon } = meta;
+  const progress = Math.round((doneSteps.size / STEP_ORDER.length) * 100);
+
   return (
-    <div className="flex flex-col items-center justify-center py-20">
-      <ul className="space-y-3">
-        {PROGRESS_STEPS.map((label, i) => {
-          const done = i < currentStep;
-          const active = i === currentStep;
-          return (
-            <li key={i} className="flex items-center gap-3">
-              {done ? (
-                <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-              ) : active ? (
-                <div className="h-4 w-4 animate-spin rounded-full border-2 border-indigo-600 border-t-transparent" />
-              ) : (
-                <Circle className="h-4 w-4 text-zinc-300" />
-              )}
-              <span
-                className={
-                  done ? "text-sm text-zinc-500" : active ? "text-sm font-medium text-zinc-900" : "text-sm text-zinc-400"
-                }
-              >
-                {label}
-              </span>
-            </li>
-          );
-        })}
-      </ul>
+    <div className="flex flex-col items-center justify-center py-24 gap-5">
+      {/* Spinner with current step icon inside */}
+      <div className="relative flex h-14 w-14 items-center justify-center">
+        <div className="absolute inset-0 animate-spin rounded-full border-2 border-zinc-100 border-t-indigo-500" />
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={activeKey}
+            initial={{ opacity: 0, scale: 0.7 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.7 }}
+            transition={{ duration: 0.2 }}
+            className={`flex h-7 w-7 items-center justify-center rounded-lg ${meta.bgColor}`}
+          >
+            <Icon className={`h-4 w-4 ${meta.color}`} />
+          </motion.div>
+        </AnimatePresence>
+      </div>
+
+      {/* Animated label */}
+      <div className="h-6 overflow-hidden">
+        <AnimatePresence mode="wait">
+          <motion.p
+            key={activeKey}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.2 }}
+            className="text-sm font-medium text-zinc-700"
+          >
+            {activeKey === "extraction" ? "Lecture des documents…" : `Extraction : ${meta.label}…`}
+          </motion.p>
+        </AnimatePresence>
+      </div>
+
+      {/* Progress bar */}
+      <div className="h-1 w-44 overflow-hidden rounded-full bg-zinc-100">
+        <motion.div
+          className="h-full rounded-full bg-indigo-500"
+          animate={{ width: `${progress}%` }}
+          transition={{ duration: 0.4, ease: "easeOut" }}
+        />
+      </div>
     </div>
   );
 }
@@ -280,7 +317,8 @@ function parseDocDate(raw: string | null | undefined): Date | null {
 // ── Main component ───────────────────────────────────────
 
 export function StepSummary({ docs, notes, dateFrom, dateTo, dossierId, dossier, onDossierChange }: StepSummaryProps) {
-  const [progressStep, setProgressStep] = useState<number | null>(null);
+  const [parsing, setParsing] = useState(false);
+  const [doneSteps, setDoneSteps] = useState<Set<string>>(new Set());
   const [error, setError] = useState<string | null>(null);
   const [expandedRubriques, setExpandedRubriques] = useState<string[]>([]);
 
@@ -327,12 +365,16 @@ export function StepSummary({ docs, notes, dateFrom, dateTo, dossierId, dossier,
     parseStarted.current = true;
 
     async function parse() {
-      setProgressStep(0);
+      setParsing(true);
+      setDoneSteps(new Set());
       setError(null);
       try {
-        setProgressStep(1);
-        const { dossier_id, dossier: parsed } = await api.parseDossier(files);
-        setProgressStep(2);
+        const { dossier_id, dossier: parsed } = await api.parseDossierStream(files, (event) => {
+          if (event.type === "progress" && event.step) {
+            setDoneSteps((prev) => new Set([...prev, event.step!]));
+          }
+        });
+        setDoneSteps(new Set(STEP_ORDER)); // mark all done before unmounting progress
         if (notes) {
           const { dossier: withNotes } = await api.updateDossier(dossier_id, { notes });
           onDossierChange(dossier_id, withNotes);
@@ -342,14 +384,14 @@ export function StepSummary({ docs, notes, dateFrom, dateTo, dossierId, dossier,
       } catch (e) {
         setError(e instanceof Error ? e.message : "Erreur inattendue");
       } finally {
-        setProgressStep(null);
+        setParsing(false);
       }
     }
 
     parse();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (progressStep !== null) return <ProgressChecklist currentStep={progressStep} />;
+  if (parsing) return <StreamingProgress doneSteps={doneSteps} />;
 
   if (error) {
     return (
@@ -543,6 +585,7 @@ function EditableInfoField({
   onSave: (value: string) => void;
 }) {
   const [editing, setEditing] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const [local, setLocal] = useState(value);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -555,6 +598,10 @@ function EditableInfoField({
     setEditing(false);
     if (local !== value) onSave(local);
   };
+
+  const isLong = value.length > PROSE_TRUNCATE_THRESHOLD || value.includes("\n");
+
+  if (!editing && !value) return null;
 
   if (editing) {
     return (
@@ -574,17 +621,31 @@ function EditableInfoField({
   }
 
   return (
-    <div className="group cursor-pointer rounded-md px-1 py-0.5 hover:bg-zinc-50" onClick={() => setEditing(true)}>
+    <div className="group rounded-md px-1 py-0.5">
       <p className="text-xs font-medium text-zinc-400">{label}</p>
-      <p className="mt-0.5 text-sm text-zinc-900">
-        {value || <span className="text-zinc-300">—</span>}
-        {value && suffix}
+      <p
+        className={`mt-0.5 cursor-pointer text-sm text-zinc-900 hover:text-zinc-700 ${!expanded && isLong ? "line-clamp-2" : ""}`}
+        onClick={() => setEditing(true)}
+      >
+        {value}
+        {suffix}
       </p>
+      {isLong && (
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className="mt-0.5 text-[11px] font-medium text-indigo-500 hover:text-indigo-700"
+        >
+          {expanded ? "Voir moins ↑" : "Voir plus ↓"}
+        </button>
+      )}
     </div>
   );
 }
 
 // ── Editable prose field (rubrique sub-field) ────────────
+
+const PROSE_TRUNCATE_THRESHOLD = 120;
 
 function EditableProseField({
   label,
@@ -598,6 +659,7 @@ function EditableProseField({
   onSave: (value: string) => void;
 }) {
   const [editing, setEditing] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const [local, setLocal] = useState(value);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -616,6 +678,9 @@ function EditableProseField({
   };
 
   const isFilled = value.length > 0;
+  const isLong = value.length > PROSE_TRUNCATE_THRESHOLD || value.includes("\n");
+
+  if (!editing && !isFilled) return null;
 
   if (editing) {
     return (
@@ -644,18 +709,33 @@ function EditableProseField({
   }
 
   return (
-    <div className="group flex cursor-pointer items-start gap-2 rounded-md px-2 py-1.5 hover:bg-white" onClick={() => setEditing(true)}>
-      <div className="mt-0.5 shrink-0">
-        {isFilled ? (
-          <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
-        ) : (
-          <Circle className="h-3.5 w-3.5 text-zinc-300" />
-        )}
+    <div className="group rounded-md px-2 py-1.5 hover:bg-white">
+      <div className="flex cursor-pointer items-start gap-2" onClick={() => setEditing(true)}>
+        <div className="mt-0.5 shrink-0">
+          {isFilled ? (
+            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+          ) : (
+            <Circle className="h-3.5 w-3.5 text-zinc-300" />
+          )}
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className={`text-xs font-medium ${isFilled ? "text-zinc-700" : "text-zinc-400"}`}>{label}</p>
+          {isFilled && (
+            <p className={`mt-0.5 whitespace-pre-wrap text-xs text-zinc-500 ${!expanded && isLong ? "line-clamp-2" : ""}`}>
+              {value}
+            </p>
+          )}
+        </div>
       </div>
-      <div className="min-w-0 flex-1">
-        <p className={`text-xs font-medium ${isFilled ? "text-zinc-700" : "text-zinc-400"}`}>{label}</p>
-        {isFilled && <p className="mt-0.5 line-clamp-2 text-xs text-zinc-500">{value}</p>}
-      </div>
+      {isFilled && isLong && (
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className="mt-0.5 pl-6 text-[11px] font-medium text-indigo-500 hover:text-indigo-700"
+        >
+          {expanded ? "Voir moins ↑" : "Voir plus ↓"}
+        </button>
+      )}
     </div>
   );
 }

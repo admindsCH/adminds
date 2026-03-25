@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useCallback, useRef, useEffect } from "react";
+import { useUser } from "@clerk/nextjs";
 import { Button } from "@/components/button";
 import { Badge } from "@/components/badge";
 import { Text } from "@/components/text";
@@ -173,6 +174,7 @@ function EditorSectionPanel({
   onUpdate,
   dossierId,
   templateId,
+  doctorName,
   onFieldRegenerated,
 }: {
   section: EditorSection;
@@ -183,6 +185,7 @@ function EditorSectionPanel({
   onUpdate: () => void;
   dossierId: string | null;
   templateId: string;
+  doctorName?: string;
   onFieldRegenerated: (fieldId: string, value: string) => void;
 }) {
   const [instructionFieldId, setInstructionFieldId] = useState<string | null>(null);
@@ -193,7 +196,7 @@ function EditorSectionPanel({
     if (!dossierId) return;
     setRegeneratingFieldId(fieldId);
     try {
-      const result = await api.regenerateField(dossierId, templateId, fieldId, instructionText || undefined);
+      const result = await api.regenerateField(dossierId, templateId, fieldId, instructionText || undefined, doctorName);
       onFieldRegenerated(result.field_id, result.value);
       setInstructionFieldId(null);
       setInstructionText("");
@@ -202,7 +205,7 @@ function EditorSectionPanel({
     } finally {
       setRegeneratingFieldId(null);
     }
-  }, [dossierId, templateId, instructionText, onFieldRegenerated]);
+  }, [dossierId, templateId, instructionText, doctorName, onFieldRegenerated]);
 
   return (
     <div className="rounded-lg border border-zinc-200">
@@ -305,11 +308,13 @@ function DocumentDetailView({
   item,
   canton,
   dossierId,
+  doctorName,
   onBack,
 }: {
   item: CartItem;
   canton: string;
   dossierId: string | null;
+  doctorName?: string;
   onBack: () => void;
 }) {
   const previewRef = useRef<HTMLDivElement>(null);
@@ -511,6 +516,7 @@ function DocumentDetailView({
                     onUpdate={handleUpdate}
                     dossierId={dossierId}
                     templateId={item.template.id}
+                    doctorName={doctorName}
                     onFieldRegenerated={(fieldId, value) => setEditedValues((prev) => ({ ...prev, [fieldId]: value }))}
                   />
                 ))}
@@ -656,6 +662,9 @@ interface StepGenerateProps {
 }
 
 export function StepGenerate({ selectedTemplates, canton, dossierId }: StepGenerateProps) {
+  const { user } = useUser();
+  const doctorName = user ? `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim() || undefined : undefined;
+
   const [cart, setCart] = useState<CartItem[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [allDone, setAllDone] = useState(false);
@@ -682,7 +691,7 @@ export function StepGenerate({ selectedTemplates, canton, dossierId }: StepGener
     if (canGenerate && dossierId) {
       try {
         const templateCanton = item.template.canton === "all" ? canton : item.template.canton;
-        const result = await api.generateReport(dossierId, templateCanton, item.template.id);
+        const result = await api.generateReport(dossierId, templateCanton, item.template.id, doctorName);
 
         updateItem(item.template.id, { status: "formatting", progress: 80 });
         const { isPdf, mimeType } = getFileMeta(item.template.filename);
@@ -705,7 +714,7 @@ export function StepGenerate({ selectedTemplates, canton, dossierId }: StepGener
       await new Promise((r) => setTimeout(r, 1200 + Math.random() * 500));
       updateItem(item.template.id, { status: "done", progress: 100 });
     }
-  }, [dossierId, canton, updateItem]);
+  }, [dossierId, canton, doctorName, updateItem]);
 
   const retryItem = useCallback((templateId: string) => {
     setAllDone(false);
@@ -760,6 +769,7 @@ export function StepGenerate({ selectedTemplates, canton, dossierId }: StepGener
         item={viewingItem}
         canton={viewingItem.template.canton === "all" ? canton : viewingItem.template.canton}
         dossierId={dossierId}
+        doctorName={doctorName}
         onBack={() => setViewingTemplateId(null)}
       />
     );

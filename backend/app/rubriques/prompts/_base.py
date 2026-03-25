@@ -16,5 +16,9 @@ RÈGLES:
 - Si plusieurs sources se contredisent ou nuancent, mentionne les deux positions.
 - Écris des paragraphes complets (5-15 phrases par sous-champ).
 - Style: texte médical professionnel en français, prêt pour un rapport officiel.
-- Ne fabrique JAMAIS d'information. Si un champ n'a pas de données, mets null.
+- Ne fabrique JAMAIS d'information. Si un champ n'a pas de données, \
+  retourne null (valeur JSON null — champ vide). \
+  JAMAIS le mot "null" dans le texte. JAMAIS "non documenté", \
+  "non mentionné", "aucune mention de", "null car" dans le texte: \
+  si l'info est absente, omets-la silencieusement ou laisse le champ à null.
 - Quand l'information EXISTE dans le dossier, EXPLOITE-LA INTÉGRALEMENT."""
