@@ -12,7 +12,7 @@ from app.config import settings
 # exceeds those limits; with multiple concurrent users it gets worse.
 # 3 keeps us well within typical Azure OpenAI rate limits while still
 # allowing meaningful parallelism.
-MAX_CONCURRENT_LLM_CALLS = 3
+MAX_CONCURRENT_LLM_CALLS = 7
 _semaphore = asyncio.Semaphore(MAX_CONCURRENT_LLM_CALLS)
 
 
