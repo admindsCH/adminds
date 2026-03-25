@@ -1,6 +1,6 @@
 """
 Rubrique models — the canonical intermediate data structure between
-dossier parsing (Step 2) and report generation (Step 3).
+dossier parsing (Step 3) and report generation (Step 4).
 
 Each rubrique (R01–R08) groups related clinical information:
 - Prose fields (str | None) — narrative text for reports

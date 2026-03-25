@@ -1,5 +1,3 @@
-"""Prompt for R02 — Clinique (current clinical picture)."""
-
 from app.rubriques.prompts._base import PREAMBLE
 
 PROMPT = f"""\

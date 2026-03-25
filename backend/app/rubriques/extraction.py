@@ -1,9 +1,3 @@
-"""Parallel per-rubrique extraction from patient dossier text.
-
-Runs 9 concurrent LLM calls (8 rubriques + patient_info), each with a
-focused prompt. Returns a fully populated PatientDossier.
-"""
-
 from __future__ import annotations
 
 import asyncio

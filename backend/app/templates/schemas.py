@@ -1,19 +1,8 @@
-"""Pydantic models for the generic template engine.
-
-Two template formats supported:
-- DOCX: slots are form fields (ffData), table cells, header labels
-- PDF:  slots are AcroForm widgets (text, checkbox, combo, radio, listbox)
-
-RawSlot — output of the parser (positions + context, no semantic labels).
-SchemaField — labeled slot (position + semantic info, ready for LLM prompt + filler).
-TemplateSchema — complete schema for a template, stored as JSON in blob storage.
-"""
-
 from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 # Slot types across both formats
 SlotType = Literal[
@@ -72,9 +61,6 @@ class SchemaField(BaseModel):
     mapped_rubrique: str | None = None  # r01_historique .. r08_activites
 
 
-# ── Complete template schema (stored in blob storage) ─────
-
-
 class TemplateSchema(BaseModel):
     """Full schema for a template — stored as JSON in the 'schemas' container."""
 
@@ -108,9 +94,6 @@ class TemplateSchema(BaseModel):
         return result
 
 
-# ── API request / response models ─────────────────────────
-
-
 class TemplateResponse(BaseModel):
     """Returned by GET /api/templates and POST /api/templates."""
 
@@ -141,3 +124,24 @@ class UpdateSchemaRequest(BaseModel):
     """Request body for PUT /api/templates/{template_id}/schema."""
 
     fields: list[SchemaField]
+
+
+class TemplateClassification(BaseModel):
+    """Structured output from the template classifier LLM call."""
+
+    name: str = Field(description="Nom court et clair du formulaire en français (ex: 'Rapport AI Fribourg', 'Certificat médical SUVA'). Max 50 caractères.")
+    description: str = Field(description="Description d'une ligne expliquant le but du formulaire. Max 100 caractères.")
+    category: str = Field(description="Une parmi: 'rapport-ai' (assurance invalidité), 'rapport-medical' (rapport médical initial ou de suivi), 'rapport-assurance' (assurance privée), 'rapport-perte-gain' (attestation perte de gain).")
+    canton: str = Field(description="Canton cible: 'fribourg', 'geneve', ou 'all' si non spécifique à un canton.")
+    insurance: str = Field(description="Nom de l'assurance si identifiable (ex: 'SUVA', 'CSS', 'AI fédérale'), sinon chaîne vide.")
+    page_count: int = Field(description="Nombre estimé de pages du formulaire rempli.")
+
+    @field_validator("name")
+    @classmethod
+    def truncate_name(cls, v: str) -> str:
+        return v[:50]
+
+    @field_validator("description")
+    @classmethod
+    def truncate_description(cls, v: str) -> str:
+        return v[:100]

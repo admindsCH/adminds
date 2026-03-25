@@ -1,5 +1,3 @@
-"""Prompt for R04 — Professionnel (professional situation & employment)."""
-
 from app.rubriques.prompts._base import PREAMBLE
 
 PROMPT = f"""\

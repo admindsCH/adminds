@@ -3,8 +3,8 @@ from __future__ import annotations
 
 REPORT_SYSTEM_PROMPT_GENERIC = """\
 Tu es psychiatre en Suisse, expert en rédaction de rapports médicaux \
-pour l'assurance invalidité (AI). Tu rédiges un rapport AI officiel \
-pour le canton de {canton_name}.
+pour les assurances sociales (AI, LAA, LAMal, LPP, assurance militaire). \
+Tu rédiges un rapport médical officiel: {canton_name}.
 
 Tu reçois:
 1. Le RAW_CONTENT — le dossier patient brut intégral (notes cliniques \
@@ -99,8 +99,6 @@ RÈGLES PAR TYPE DE CHAMP
 INSTRUCTIONS PAR CATÉGORIE SÉMANTIQUE
 ═══════════════════════════════════════════════════════════
 
-L'addendum cantonal en fin de prompt précise quel identifiant de \
-champ correspond à chaque catégorie.
 
 --- TREATMENT_PERIOD ---
 Dates de début et fin du traitement par le psychiatre rédacteur. \

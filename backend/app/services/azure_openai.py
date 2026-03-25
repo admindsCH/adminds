@@ -6,22 +6,11 @@ from loguru import logger
 
 from app.config import settings
 
-# Global semaphore: limits concurrent OpenAI calls across the entire app.
-# Azure OpenAI deployments have RPM (requests per minute) and TPM (tokens per
-# minute) limits.  Bursting 9-15 parallel calls from a single user easily
-# exceeds those limits; with multiple concurrent users it gets worse.
-# 3 keeps us well within typical Azure OpenAI rate limits while still
-# allowing meaningful parallelism.
 MAX_CONCURRENT_LLM_CALLS = 7
 _semaphore = asyncio.Semaphore(MAX_CONCURRENT_LLM_CALLS)
 
 
 def get_model(**kwargs) -> AzureChatOpenAI:
-    """Return an Azure OpenAI chat model configured from settings.
-
-    Pass any extra kwargs (e.g. model_kwargs={"response_format": ...})
-    to override defaults.
-    """
     return AzureChatOpenAI(
         azure_deployment=settings.azure_openai_deployment,
         api_key=settings.azure_openai_api_key,
@@ -45,10 +34,3 @@ async def ainvoke_throttled(model: Any, messages: Any) -> Any:
             f"({MAX_CONCURRENT_LLM_CALLS - _semaphore._value}/{MAX_CONCURRENT_LLM_CALLS} slots in use)"
         )
         return await model.ainvoke(messages)
-
-
-async def test_hello() -> dict:
-    """Send a simple prompt to Azure OpenAI and return the response."""
-    model = get_model()
-    response = await ainvoke_throttled(model, "Hello!")
-    return {"response": response.content}

@@ -1,5 +1,3 @@
-"""Prompt for extracting PatientInfo (demographics & background)."""
-
 from app.rubriques.prompts._base import PREAMBLE
 
 PROMPT = f"""\

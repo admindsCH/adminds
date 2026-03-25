@@ -1,5 +1,3 @@
-"""Prompt for R03 — Traitement (medication, treatment plan, prognosis)."""
-
 from app.rubriques.prompts._base import PREAMBLE
 
 PROMPT = f"""\

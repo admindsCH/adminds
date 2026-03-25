@@ -1,9 +1,3 @@
-"""Generic .docx filler — replaces canton-specific fillers.
-
-Given template bytes, a TemplateSchema (with slot positions), and
-field_values from the LLM, fills every slot and returns the result.
-"""
-
 from __future__ import annotations
 
 import io

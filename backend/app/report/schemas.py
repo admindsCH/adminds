@@ -1,22 +1,15 @@
-"""Schemas for report generation."""
-
 from __future__ import annotations
-
-from typing import Any, Literal
-
+from typing import Any
 from pydantic import BaseModel
 
 
 class GenerateReportRequest(BaseModel):
-    """Request body for POST /api/generate-report."""
-
     dossier_id: str
-    canton: Literal["fribourg", "geneve"] = "fribourg"
-    template_id: str | None = None  # generic engine — overrides canton
+    template_id: str
 
 
 class FieldSchemaEntry(BaseModel):
-    """One field descriptor from the canton field map."""
+    """One field descriptor from the template schema."""
 
     id: str
     type: str
@@ -47,8 +40,7 @@ class UpdateReportRequest(BaseModel):
     """
 
     dossier_id: str
-    canton: Literal["fribourg", "geneve"] = "fribourg"
-    template_id: str | None = None  # generic engine — overrides canton
+    template_id: str
     field_values: dict[str, Any]
 
 

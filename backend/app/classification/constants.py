@@ -1,12 +1,10 @@
-"""Constants for classification and dossier parsing: prompts, field maps, config."""
-
 from __future__ import annotations
 
 # Accepted upload file extensions.
 ALLOWED_EXTENSIONS = {".pdf", ".docx", ".doc", ".jpg", ".jpeg", ".png", ".tiff", ".bmp"}
 
 
-# --- Classification system prompt (Step 1: per-file labeling) ---
+# --- Classification system prompt (Step 2: per-file labeling) ---
 # Quick classification for UI badges. Returns DocumentClassification.
 
 CLASSIFICATION_SYSTEM_PROMPT = """\
@@ -28,22 +26,14 @@ r05_capacite_travail, r06_readaptation, r07_freins_cognition, r08_activites)
 Sois précis et factuel."""
 
 
-# --- Report type -> required rubriques mapping ---
-# Declares which rubriques each report type needs.
-# Used at generation time to select which rubriques to include in the LLM context.
+# --- Dossier chat system prompt (free-form Q&A on the patient record) ---
 
-REPORT_RUBRIQUE_MAP: dict[str, list[str]] = {
-    "rapport_ai": [
-        "r01_historique",
-        "r02_clinique",
-        "r03_traitement",
-        "r04_professionnel",
-        "r05_capacite_travail",
-        "r06_readaptation",
-        "r07_freins_cognition",
-        "r08_activites",
-    ],
-    # Future report types — just list the rubriques they need:
-    # "certificat_incapacite": ["r02_clinique", "r05_capacite_travail"],
-    # "rapport_medical_simple": ["r01_historique", "r02_clinique", "r03_traitement"],
-}
+CHAT_SYSTEM_PROMPT = """\
+Tu es un psychiatre expert suisse. Tu reçois le texte intégral extrait \
+d'un dossier médical patient et une question du médecin rédacteur.
+
+Réponds de manière précise, factuelle et concise en français. \
+Base ta réponse UNIQUEMENT sur le contenu du dossier fourni. \
+Cite les dates, auteurs et sources quand c'est pertinent. \
+Si l'information n'est pas dans le dossier, dis-le clairement. \
+Ne fabrique JAMAIS d'information."""

@@ -1,5 +1,3 @@
-"""Prompt for R06 — Réadaptation (re-adaptation potential & obstacles)."""
-
 from app.rubriques.prompts._base import PREAMBLE
 
 PROMPT = f"""\

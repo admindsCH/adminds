@@ -1,18 +1,17 @@
 """Template classifier — auto-detect metadata from an uploaded template.
 
-Reads the document content and uses GPT to determine:
+Reads the document content and uses GPT structured output to determine:
 - name: clean display name (e.g. "Rapport AI Fribourg")
 - description: one-line description
 - category: rapport-ai | rapport-medical | rapport-assurance | rapport-perte-gain
 - canton: fribourg | geneve | all
-- insurance_id: matched against known insurances, or empty
+- insurance: matched against known insurances, or empty
 - page_count: estimated from content
 """
 
 from __future__ import annotations
 
 import io
-import json
 
 import fitz  # PyMuPDF
 from docx import Document
@@ -20,6 +19,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from loguru import logger
 
 from app.services.azure_openai import ainvoke_throttled, get_model
+from app.templates.schemas import TemplateClassification
 
 # Known insurance names → IDs
 _KNOWN_INSURANCES = {
@@ -36,24 +36,11 @@ _KNOWN_INSURANCES = {
 }
 
 _CLASSIFIER_PROMPT = """\
-Tu es un expert en formulaires médicaux suisses pour l'assurance invalidité (AI).
+Tu es un expert en formulaires médicaux suisses pour les assurances sociales \
+(AI, LAA, LAMal, LPP, assurance militaire).
 
-On te donne le contenu textuel d'un formulaire/rapport médical vide (template).
-Analyse-le et retourne un JSON avec exactement ces clés:
-
-- "name": nom court et clair du formulaire en français (ex: "Rapport AI Fribourg", "Certificat médical SUVA", "Perte de gain Visana"). Max 50 caractères.
-- "description": description d'une ligne expliquant le but du formulaire. Max 100 caractères.
-- "category": une parmi "rapport-ai", "rapport-medical", "rapport-assurance", "rapport-perte-gain".
-  - "rapport-ai" = rapport officiel d'assurance invalidité (AI/IV)
-  - "rapport-medical" = rapport médical initial ou de suivi
-  - "rapport-assurance" = rapport pour une assurance privée
-  - "rapport-perte-gain" = attestation de perte de gain / incapacité
-- "canton": "fribourg", "geneve", ou "all" si le formulaire n'est pas spécifique à un canton.
-- "insurance": nom de l'assurance si identifiable (ex: "SUVA", "CSS", "AI fédérale"), sinon "".
-- "page_count": nombre estimé de pages du formulaire rempli (entier).
-
-Retourne UNIQUEMENT le JSON, sans commentaire.
-"""
+On te donne le contenu textuel d'un formulaire/rapport médical vide (template). \
+Analyse-le et extrais ses métadonnées."""
 
 
 async def classify_template(
@@ -80,40 +67,32 @@ async def classify_template(
 
     logger.info(f"Classifying template ({len(content)} chars of content)")
 
-    model = get_model(model_kwargs={"response_format": {"type": "json_object"}})
-    response = await ainvoke_throttled(
-        model,
+    structured = get_model().with_structured_output(TemplateClassification)
+    result: TemplateClassification = await ainvoke_throttled(
+        structured,
         [
             SystemMessage(content=_CLASSIFIER_PROMPT),
             HumanMessage(content=f"Contenu du formulaire:\n\n{content}"),
         ],
     )
 
-    try:
-        result = json.loads(response.content)
-    except json.JSONDecodeError as e:
-        logger.error(f"LLM returned invalid JSON during classification: {e}")
-        result = {}
-
     # Map insurance name to ID
-    insurance_name = result.get("insurance", "").lower().strip()
+    insurance_lower = result.insurance.lower().strip()
     insurance_id = ""
     for known_name, known_id in _KNOWN_INSURANCES.items():
-        if known_name in insurance_name or insurance_name in known_name:
+        if known_name in insurance_lower or insurance_lower in known_name:
             insurance_id = known_id
             break
 
-    page_count = int(result.get("page_count", 1))
-
     metadata = {
-        "name": result.get("name", "Formulaire importé")[:50],
-        "description": result.get("description", "")[:100],
-        "category": result.get("category", "rapport-ai"),
-        "canton": result.get("canton", "all"),
+        "name": result.name,
+        "description": result.description,
+        "category": result.category,
+        "canton": result.canton,
         "insurance_id": insurance_id,
-        "insurance_name": result.get("insurance", ""),
-        "page_count": str(page_count),
-        "estimated_minutes": str(max(2, page_count)),
+        "insurance_name": result.insurance,
+        "page_count": str(result.page_count),
+        "estimated_minutes": str(max(2, result.page_count)),
         "is_official": "false",
     }
 

@@ -8,7 +8,6 @@ from pathlib import PurePath
 from liteparse import LiteParse
 from loguru import logger
 
-# Accepted upload file extensions.
 _SUPPORTED_EXTENSIONS = {
     ".pdf",
     ".docx",
@@ -20,8 +19,6 @@ _SUPPORTED_EXTENSIONS = {
     ".bmp",
 }
 
-
-# Shared parser instance — reused across calls to avoid cold-start overhead.
 _parser = LiteParse()
 
 

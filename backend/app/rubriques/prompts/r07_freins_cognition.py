@@ -1,5 +1,3 @@
-"""Prompt for R07 — Freins psychiatriques & fonctions cognitives."""
-
 from app.rubriques.prompts._base import PREAMBLE
 
 PROMPT = f"""\

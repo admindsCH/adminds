@@ -1,12 +1,3 @@
-"""Report generation services.
-
-All report generation goes through the generic template engine:
-1. Load template schema from blob storage
-2. Build system prompt with field schema
-3. LLM fills field values from patient dossier
-4. Generic filler writes values into the template (.docx or .pdf)
-"""
-
 from __future__ import annotations
 
 import asyncio
@@ -22,6 +13,11 @@ from loguru import logger
 from app.classification import store
 from app.classification.schemas import PatientDossier
 from app.report.constants import build_system_prompt
+from app.report.schemas import (
+    GenerateReportResponse,
+    RegenerateFieldResponse,
+    UpdateReportResponse,
+)
 from app.services import blob_storage
 from app.services.azure_openai import ainvoke_throttled, get_model
 from app.templates.generic_filler import fill_template
@@ -126,22 +122,9 @@ async def _generate_section(
 
 async def generate_report(
     dossier_id: str,
-    canton: str,
-    template_id: str | None = None,
-) -> dict[str, Any]:
-    """Generate a filled report from a stored dossier.
-
-    Args:
-        dossier_id: Server-side dossier ID.
-        canton: Canton key (used for legacy compat, ignored if template_id given).
-        template_id: Blob storage template ID (e.g. "rapport-ai/rapport-ai-fribourg").
-    """
-    if not template_id:
-        raise HTTPException(
-            status_code=400,
-            detail="template_id est requis. Sélectionnez un template.",
-        )
-
+    template_id: str,
+) -> GenerateReportResponse:
+    """Generate a filled report from a stored dossier."""
     # 1. Fetch dossier
     dossier = store.get_dossier(dossier_id)
     if dossier is None:
@@ -172,15 +155,17 @@ async def generate_report(
         f"across {len(section_groups)} sections"
     )
 
-    section_results = await asyncio.gather(*(
-        _generate_section(
-            section_name=section_name,
-            section_fields=section_fields,
-            canton_name=schema.template_name,
-            patient_context=patient_context,
+    section_results = await asyncio.gather(
+        *(
+            _generate_section(
+                section_name=section_name,
+                section_fields=section_fields,
+                canton_name=schema.template_name,
+                patient_context=patient_context,
+            )
+            for section_name, section_fields in section_groups.items()
         )
-        for section_name, section_fields in section_groups.items()
-    ))
+    )
 
     field_values: dict[str, Any] = {}
     for section_vals in section_results:
@@ -197,24 +182,21 @@ async def generate_report(
     report_path = store.save_report(dossier_id, filled_bytes)
     logger.info(f"Report generated: {len(filled_bytes)} bytes, saved to {report_path}")
 
-    return {
-        "field_values": field_values,
-        "field_schema": prompt_schema,
-        "docx_base64": base64.b64encode(filled_bytes).decode("ascii"),
-    }
+    return GenerateReportResponse(
+        field_values=field_values,
+        field_schema=prompt_schema,
+        docx_base64=base64.b64encode(filled_bytes).decode("ascii"),
+    )
 
 
 async def update_report(
     dossier_id: str,
-    canton: str,
     field_values: dict[str, Any],
-    template_id: str | None = None,
-) -> dict[str, Any]:
+    template_id: str,
+) -> UpdateReportResponse:
     """Re-fill the template with user-edited field values."""
     if store.get_dossier(dossier_id) is None:
         raise HTTPException(status_code=404, detail="Dossier introuvable")
-    if not template_id:
-        raise HTTPException(status_code=400, detail="template_id est requis.")
 
     field_values = {k: v for k, v in field_values.items() if v is not None}
 
@@ -229,9 +211,9 @@ async def update_report(
     report_path = store.save_report(dossier_id, filled_bytes)
     logger.info(f"Report updated: {len(filled_bytes)} bytes, saved to {report_path}")
 
-    return {
-        "docx_base64": base64.b64encode(filled_bytes).decode("ascii"),
-    }
+    return UpdateReportResponse(
+        docx_base64=base64.b64encode(filled_bytes).decode("ascii"),
+    )
 
 
 async def regenerate_field(
@@ -265,7 +247,11 @@ async def regenerate_field(
         entry["section_number"] = field.section_number
     hint = field.hint or ""
     if instruction:
-        hint = f"{hint}. INSTRUCTION DU MÉDECIN: {instruction}" if hint else f"INSTRUCTION DU MÉDECIN: {instruction}"
+        hint = (
+            f"{hint}. INSTRUCTION DU MÉDECIN: {instruction}"
+            if hint
+            else f"INSTRUCTION DU MÉDECIN: {instruction}"
+        )
     if hint:
         entry["hint"] = hint
     if field.options:
@@ -282,7 +268,7 @@ async def regenerate_field(
 
     value = result.get(field_id, "")
     logger.info(f"Regenerated field '{field_id}': {len(str(value))} chars")
-    return {"field_id": field_id, "value": str(value)}
+    return RegenerateFieldResponse(field_id=field_id, value=str(value))
 
 
 def _fill(schema, template_bytes: bytes, field_values: dict[str, Any]) -> bytes:

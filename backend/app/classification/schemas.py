@@ -1,11 +1,6 @@
-"""Pydantic models for classification"""
-
 from __future__ import annotations
-
 from typing import Literal
-
 from pydantic import BaseModel, Field
-
 from app.rubriques.models import Rubriques
 
 CategoryType = Literal[
@@ -69,10 +64,7 @@ class ClassifiedDocument(BaseModel):
 
 
 class PatientInfo(BaseModel):
-    """Demographic and background info extracted from the dossier.
-
-    All fields optional — we extract what we find
-    """
+    """Demographic and background info extracted from the dossier."""
 
     age: int | None = Field(None, description="Âge du patient si mentionné")
     sexe: Literal["homme", "femme", "inconnu"] | None = Field(
@@ -139,6 +131,4 @@ class ChatRequest(BaseModel):
 
 
 class ChatResponse(BaseModel):
-    """Response from POST /api/dossier-chat."""
-
     answer: str

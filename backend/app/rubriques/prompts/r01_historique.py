@@ -1,5 +1,3 @@
-"""Prompt for R01 — Historique (medical & psychiatric history)."""
-
 from app.rubriques.prompts._base import PREAMBLE
 
 PROMPT = f"""\

@@ -14,10 +14,11 @@ import json
 import re
 from pathlib import Path
 from uuid import uuid4
+from app.classification.schemas import PatientDossier
+
 
 _UUID_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
 
-from app.classification.schemas import PatientDossier
 
 # Root directory for all dossier data, next to the app/ package.
 _DATA_DIR = Path(__file__).resolve().parent.parent.parent / "data" / "dossiers"

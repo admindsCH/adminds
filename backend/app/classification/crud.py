@@ -1,5 +1,3 @@
-"""CRUD operations for dossiers (create, read, update)."""
-
 from __future__ import annotations
 
 from fastapi import HTTPException

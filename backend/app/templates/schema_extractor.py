@@ -51,9 +51,6 @@ _PLACEHOLDER_RE = re.compile(
 )
 
 
-# ── Public API ───────────────────────────────────────────
-
-
 def extract_raw_slots(file_bytes: bytes) -> list[RawSlot]:
     """Extract all fillable slots from a .docx or .pdf file.
 
@@ -64,11 +61,6 @@ def extract_raw_slots(file_bytes: bytes) -> list[RawSlot]:
     if file_bytes[:2] == b"PK":
         return _extract_docx_slots(file_bytes)
     raise ValueError("Format non supporté. Fichier .docx ou .pdf requis.")
-
-
-# ══════════════════════════════════════════════════════════
-#  PDF EXTRACTION (AcroForm via PyMuPDF)
-# ══════════════════════════════════════════════════════════
 
 
 def _extract_pdf_fields(pdf_bytes: bytes) -> list[RawSlot]:
@@ -219,11 +211,6 @@ def _extract_section_headings(page: fitz.Page) -> list[tuple[float, str]]:
 
     headings.sort(key=lambda x: x[0])
     return headings
-
-
-# ══════════════════════════════════════════════════════════
-#  DOCX EXTRACTION (legacy form fields + table cells)
-# ══════════════════════════════════════════════════════════
 
 
 def _extract_docx_slots(docx_bytes: bytes) -> list[RawSlot]:
@@ -434,9 +421,6 @@ def _detect_choice_grid(header_texts: list[str]) -> dict[str, int] | None:
     if matches >= 2:
         return columns
     return None
-
-
-# ── Text helpers ─────────────────────────────────────────
 
 
 def _get_cell_text(cell: etree._Element) -> str:

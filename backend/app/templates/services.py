@@ -10,12 +10,18 @@ from __future__ import annotations
 import re
 import unicodedata
 
+from fastapi import HTTPException
 from loguru import logger
 
 from app.services import blob_storage
 from app.templates.schema_extractor import extract_raw_slots
 from app.templates.schema_labeler import label_slots
-from app.templates.schemas import TemplateResponse, TemplateSchema
+from app.templates.schemas import (
+    ExtractSchemaResponse,
+    TemplateResponse,
+    TemplateSchema,
+    UpdateSchemaRequest,
+)
 from app.templates.template_classifier import classify_template
 
 
@@ -29,6 +35,59 @@ def _slugify(text: str) -> str:
     text = text.lower()
     text = re.sub(r"[^a-z0-9]+", "-", text)
     return text.strip("-")
+
+
+def list_templates() -> list[TemplateResponse]:
+    """List all available templates."""
+    return blob_storage.list_templates()
+
+
+def delete_template(template_id: str) -> None:
+    """Delete a template and its schema."""
+    try:
+        blob_storage.delete_template(template_id)
+    except Exception as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+async def extract_schema(template_id: str) -> ExtractSchemaResponse:
+    """Run or re-run schema extraction on a template."""
+    try:
+        meta = blob_storage.get_template_metadata(template_id)
+    except Exception:
+        raise HTTPException(status_code=404, detail="Template introuvable")
+    template_name = meta.get("name", template_id)
+    schema = await extract_and_store_schema(template_id, template_name)
+    return ExtractSchemaResponse(
+        template_id=template_id,
+        field_count=len(schema.fields),
+        sections=sorted({f.section for f in schema.fields}),
+    )
+
+
+def get_schema_dict(template_id: str) -> dict:
+    """Return a stored schema as a dict, or raise 404."""
+    schema = get_schema(template_id)
+    if schema is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Schema non trouvé. Lancez l'extraction d'abord.",
+        )
+    return schema.model_dump()
+
+
+def update_schema(template_id: str, request: UpdateSchemaRequest) -> dict:
+    """Validate and persist an updated schema."""
+    schema = get_schema(template_id)
+    if schema is None:
+        raise HTTPException(status_code=404, detail="Schema non trouvé.")
+    ids = [f.id for f in request.fields]
+    dupes = [fid for fid in ids if ids.count(fid) > 1]
+    if dupes:
+        raise HTTPException(status_code=400, detail=f"IDs dupliqués: {set(dupes)}")
+    schema.fields = request.fields
+    blob_storage.upload_schema(template_id, schema.model_dump())
+    return schema.model_dump()
 
 
 async def upload_and_extract(
@@ -49,7 +108,14 @@ async def upload_and_extract(
     Returns:
         TemplateResponse with auto-detected metadata.
     """
+    if not file_bytes:
+        raise HTTPException(status_code=400, detail="Fichier vide")
     is_pdf = file_bytes[:4] == b"%PDF"
+    if not is_pdf and file_bytes[:2] != b"PK":
+        raise HTTPException(
+            status_code=400,
+            detail="Format non supporté. Veuillez importer un fichier .docx ou .pdf.",
+        )
     template_format = "pdf" if is_pdf else "docx"
     ext = "pdf" if is_pdf else "docx"
 

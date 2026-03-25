@@ -1,14 +1,8 @@
-"""PDF filler — writes values into AcroForm fields using PyMuPDF.
-
-Takes a blank PDF template, a schema (to map semantic IDs back to
-AcroForm field names), and LLM-generated field_values.
-"""
-
 from __future__ import annotations
 
 from typing import Any
 
-import fitz  # PyMuPDF
+import fitz
 from loguru import logger
 
 from app.templates.schemas import TemplateSchema

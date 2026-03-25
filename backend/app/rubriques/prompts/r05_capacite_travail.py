@@ -1,5 +1,3 @@
-"""Prompt for R05 — Capacité de travail (work capacity assessment)."""
-
 from app.rubriques.prompts._base import PREAMBLE
 
 PROMPT = f"""\

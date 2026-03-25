@@ -1,5 +1,3 @@
-"""Prompt for R08 — Activités (functional limitations & remaining capacities)."""
-
 from app.rubriques.prompts._base import PREAMBLE
 
 PROMPT = f"""\

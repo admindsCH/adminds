@@ -31,7 +31,8 @@ RUBRIQUE_KEYS = [
 # ── System prompt for slot labeling ──────────────────────
 
 _LABELING_SYSTEM_PROMPT = """\
-Tu es un expert en formulaires médicaux suisses pour l'assurance invalidité (AI).
+Tu es un expert en formulaires médicaux suisses pour les assurances sociales \
+(AI, LAA, LAMal, LPP, assurance militaire).
 
 On te donne une liste de champs détectés automatiquement dans un formulaire \
 de rapport médical (.docx ou .pdf). Pour chaque champ, tu reçois:
@@ -59,9 +60,6 @@ IMPORTANT:
 Retourne un JSON: {{"fields": [...]}} où chaque élément a les clés: id, label, section, section_number, hint, mapped_rubrique.
 L'ordre doit correspondre exactement à l'ordre des champs en entrée.
 """
-
-
-# ── Public API ───────────────────────────────────────────
 
 
 async def label_slots(
@@ -166,9 +164,6 @@ async def label_slots(
     )
 
 
-# ── Prompt builder ───────────────────────────────────────
-
-
 def _build_labeling_prompt(
     raw_slots: list[RawSlot],
     template_name: str,
@@ -198,10 +193,6 @@ def _build_labeling_prompt(
         lines.append(" | ".join(parts))
 
     return "\n".join(lines)
-
-
-
-# ── Helpers ──────────────────────────────────────────────
 
 
 def _deduplicate_ids(fields: list[SchemaField]) -> None:

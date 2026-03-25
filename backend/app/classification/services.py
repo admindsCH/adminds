@@ -5,9 +5,13 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from loguru import logger
 
 from app.classification import crud
-from app.classification.constants import CLASSIFICATION_SYSTEM_PROMPT
+from app.classification.constants import (
+    CHAT_SYSTEM_PROMPT,
+    CLASSIFICATION_SYSTEM_PROMPT,
+)
 from app.classification.helpers import extract_text
 from app.classification.schemas import (
+    ChatResponse,
     ClassifiedDocument,
     DocumentClassification,
     DossierResponse,
@@ -18,17 +22,14 @@ from app.rubriques.extraction import extract_dossier
 from app.services.azure_openai import ainvoke_throttled, get_model
 
 
-# ---------------------------------------------------------------------------
-# Step 1 — Classification
-# ---------------------------------------------------------------------------
-
-
-async def classify_document(filename: str, file_bytes: bytes) -> ClassifiedDocument:
+async def classify_document(file: UploadFile) -> ClassifiedDocument:
     """Classify a single file (category + summary + author).
 
     Extracts text via LiteParse, sends it to GPT with structured output,
     returns the classification.
     """
+    filename = file.filename or "unknown"
+    file_bytes = await file.read()
     text = extract_text(filename, file_bytes)
 
     structured = get_model().with_structured_output(DocumentClassification)
@@ -52,8 +53,7 @@ async def classify_documents(files: list[UploadFile]) -> list[ClassifiedDocument
 
     for file in files:
         try:
-            file_bytes = await file.read()
-            classified = await classify_document(file.filename or "unknown", file_bytes)
+            classified = await classify_document(file)
             results.append(classified)
         except Exception as e:
             logger.exception(f"Classification failed for {file.filename}")
@@ -71,11 +71,6 @@ async def classify_documents(files: list[UploadFile]) -> list[ClassifiedDocument
             )
 
     return results
-
-
-# ---------------------------------------------------------------------------
-# Step 2 — Dossier parsing
-# ---------------------------------------------------------------------------
 
 
 async def parse_dossier(files: list[UploadFile]) -> PatientDossier:
@@ -106,11 +101,6 @@ async def parse_dossier(files: list[UploadFile]) -> PatientDossier:
     return dossier
 
 
-# ---------------------------------------------------------------------------
-# Storage helpers
-# ---------------------------------------------------------------------------
-
-
 async def parse_and_store_dossier(files: list[UploadFile]) -> DossierResponse:
     """Parse files into a PatientDossier, store it, return with ID."""
     dossier = await parse_dossier(files)
@@ -127,31 +117,16 @@ def patch_dossier(dossier_id: str, patch: PatientDossierPatch) -> DossierRespons
     return crud.patch_dossier(dossier_id, patch)
 
 
-# ---------------------------------------------------------------------------
-# Dossier chat — answer questions about patient data
-# ---------------------------------------------------------------------------
-
-_CHAT_SYSTEM_PROMPT = """\
-Tu es un psychiatre expert suisse. Tu reçois le texte intégral extrait \
-d'un dossier médical patient et une question du médecin rédacteur.
-
-Réponds de manière précise, factuelle et concise en français. \
-Base ta réponse UNIQUEMENT sur le contenu du dossier fourni. \
-Cite les dates, auteurs et sources quand c'est pertinent. \
-Si l'information n'est pas dans le dossier, dis-le clairement. \
-Ne fabrique JAMAIS d'information."""
-
-
-async def answer_dossier_question(question: str, raw_content: str) -> str:
+async def answer_dossier_question(question: str, raw_content: str) -> ChatResponse:
     """Answer a free-form question about the patient dossier."""
     model = get_model()
     response = await ainvoke_throttled(
         model,
         [
-            SystemMessage(content=_CHAT_SYSTEM_PROMPT),
+            SystemMessage(content=CHAT_SYSTEM_PROMPT),
             HumanMessage(
                 content=f"DOSSIER PATIENT:\n\n{raw_content}\n\n---\n\nQUESTION: {question}"
             ),
         ],
     )
-    return response.content
+    return ChatResponse(answer=response.content)
