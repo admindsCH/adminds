@@ -140,7 +140,14 @@ function DocumentRow({
           ) : (
             <p className="text-sm font-medium text-zinc-900">{template.name}</p>
           )}
-          <p className="mt-0.5 truncate text-xs text-zinc-500">{template.description}</p>
+          <p className="mt-0.5 truncate text-xs text-zinc-500">
+            {template.description}
+            {template.created_at && (
+              <span className="ml-2 text-zinc-400">
+                · {new Date(template.created_at).toLocaleDateString("fr-CH", { day: "numeric", month: "short", year: "numeric" })}
+              </span>
+            )}
+          </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
           {cantonLabel && <Badge color="zinc">{cantonLabel}</Badge>}
