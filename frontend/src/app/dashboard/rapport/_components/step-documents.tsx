@@ -288,52 +288,70 @@ export function StepDocuments({ docs, onDocsChange, notes, onNotesChange, dateFr
       )}
 
       {/* Notes complémentaires + voice dictation */}
-      <div className="mt-8 rounded-lg border border-zinc-200 p-4">
-        <div className="flex items-center justify-between">
-          <Subheading>Notes complémentaires</Subheading>
+      <div className="mt-8 rounded-xl border border-zinc-200 p-5">
+        <Subheading>Notes complémentaires</Subheading>
+        <Text className="mt-1">
+          Dictez ou tapez vos observations cliniques, éléments d&apos;anamnèse ou précisions pour le rapport.
+        </Text>
+
+        {/* Prominent dictation area */}
+        <div className="mt-4 flex flex-col items-center rounded-xl border-2 border-dashed border-zinc-200 bg-zinc-50/50 py-6 transition-colors has-[button:hover]:border-indigo-300 has-[button:hover]:bg-indigo-50/30">
           <button
             type="button"
             onClick={handleMicClick}
             disabled={isTranscribing}
             className={clsx(
-              "flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
+              "flex h-14 w-14 items-center justify-center rounded-full transition-all",
               isRecording
-                ? "bg-red-100 text-red-700 hover:bg-red-200"
+                ? "bg-red-500 text-white shadow-lg shadow-red-200 scale-110"
                 : isTranscribing
-                  ? "bg-zinc-100 text-zinc-400 cursor-wait"
-                  : "bg-zinc-100 text-zinc-600 hover:bg-indigo-50 hover:text-indigo-600"
+                  ? "bg-zinc-200 text-zinc-400 cursor-wait"
+                  : "bg-indigo-600 text-white shadow-md shadow-indigo-200 hover:bg-indigo-700 hover:shadow-lg hover:scale-105"
             )}
           >
             {isRecording ? (
-              <>
-                <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />
-                {formatTime(recordingTime)} — Arrêter
-              </>
+              <div className="h-5 w-5 rounded-sm bg-white" />
             ) : isTranscribing ? (
-              <>
-                <svg className="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
-                </svg>
-                Transcription...
-              </>
+              <svg className="h-6 w-6 animate-spin" viewBox="0 0 24 24" fill="none">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+              </svg>
             ) : (
-              <>
-                <MicrophoneIcon className="h-3.5 w-3.5" />
-                Dicter
-              </>
+              <MicrophoneIcon className="h-6 w-6" />
             )}
           </button>
+
+          <p className={clsx(
+            "mt-3 text-sm font-medium",
+            isRecording ? "text-red-600" : isTranscribing ? "text-zinc-400" : "text-zinc-600"
+          )}>
+            {isRecording
+              ? `Enregistrement en cours — ${formatTime(recordingTime)}`
+              : isTranscribing
+                ? "Transcription en cours..."
+                : "Cliquez pour dicter vos notes"}
+          </p>
+
+          {isRecording && (
+            <div className="mt-2 flex items-center gap-0.5">
+              {[...Array(24)].map((_, i) => (
+                <div
+                  key={i}
+                  className="w-0.5 rounded-full bg-red-400 animate-pulse"
+                  style={{ height: `${6 + Math.random() * 14}px`, animationDelay: `${i * 0.07}s` }}
+                />
+              ))}
+            </div>
+          )}
         </div>
-        <Text className="mt-1">
-          Ajoutez vos observations cliniques, éléments d&apos;anamnèse ou précisions pour le rapport.
-        </Text>
+
+        {/* Text area for manual editing / viewing transcription */}
         <textarea
           value={notes}
           onChange={(e) => onNotesChange(e.target.value)}
           placeholder="Ex : patient présente une anhédonie marquée depuis 3 mois, sommeil perturbé..."
-          rows={5}
-          className="mt-3 block w-full rounded-lg border border-zinc-950/10 bg-transparent px-3 py-2 text-sm text-zinc-950 placeholder:text-zinc-500 focus:border-zinc-950/20 focus:outline-none sm:text-sm/6"
+          rows={4}
+          className="mt-4 block w-full rounded-lg border border-zinc-950/10 bg-transparent px-3 py-2 text-sm text-zinc-950 placeholder:text-zinc-500 focus:border-zinc-950/20 focus:outline-none sm:text-sm/6"
         />
       </div>
     </div>
