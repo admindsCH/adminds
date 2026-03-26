@@ -160,6 +160,9 @@ def list_templates() -> list[TemplateResponse]:
     templates: list[TemplateResponse] = []
     for blob in container.list_blobs(include=["metadata"]):
         meta = _desanitize_metadata(blob.metadata or {})
+        created_at = ""
+        if blob.last_modified:
+            created_at = blob.last_modified.isoformat()
         templates.append(
             TemplateResponse(
                 id=blob.name,
@@ -175,6 +178,7 @@ def list_templates() -> list[TemplateResponse]:
                 has_schema=blob.name in schema_ids,
                 filename=meta.get("original_filename", ""),
                 size=blob.size,
+                created_at=created_at,
             )
         )
 
@@ -187,6 +191,14 @@ def get_template_metadata(template_id: str) -> dict[str, str]:
     blob = container.get_blob_client(template_id)
     props = blob.get_blob_properties()
     return _desanitize_metadata(props.metadata or {})
+
+
+def update_template_metadata(template_id: str, metadata: dict[str, str]) -> None:
+    """Update metadata on an existing template blob."""
+    container = _get_container(TEMPLATES_CONTAINER)
+    blob = container.get_blob_client(template_id)
+    blob.set_blob_metadata(_sanitize_metadata(metadata))
+    logger.info(f"Updated metadata for template '{template_id}'")
 
 
 def upload_schema(template_id: str, schema: dict[str, Any]) -> str:

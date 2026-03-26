@@ -5,6 +5,7 @@ from fastapi import APIRouter, File, UploadFile
 from app.templates import services
 from app.templates.schemas import (
     ExtractSchemaResponse,
+    RenameTemplateRequest,
     TemplateResponse,
     UpdateSchemaRequest,
 )
@@ -24,6 +25,12 @@ async def upload_template(file: UploadFile = File(...)) -> TemplateResponse:
 async def list_templates() -> list[TemplateResponse]:
     """List all available templates."""
     return services.list_templates()
+
+
+@router.patch("/{template_id:path}/rename", status_code=204)
+async def rename_template(template_id: str, request: RenameTemplateRequest) -> None:
+    """Rename a template."""
+    services.rename_template(template_id, request.name)
 
 
 @router.delete("/{template_id:path}", status_code=204)

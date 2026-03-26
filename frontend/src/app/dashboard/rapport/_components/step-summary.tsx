@@ -17,6 +17,7 @@ import {
   RotateCcw,
   Brain,
   Activity,
+  Pencil,
   Plus,
   Trash2,
 } from "lucide-react";
@@ -421,7 +422,7 @@ export function StepSummary({ docs, notes, dateFrom, dateTo, dossierId, dossier,
       {/* ── Patient info ── */}
       <div className="rounded-lg border border-zinc-200 p-4">
         <Subheading>Patient</Subheading>
-        <div className="mt-2 grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-4">
+        <div className="mt-2 grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-[1fr_1fr_2fr_2fr]">
           <EditableInfoField
             label="Âge"
             value={patient_info.age != null ? `${patient_info.age}` : ""}
@@ -621,11 +622,13 @@ function EditableInfoField({
   }
 
   return (
-    <div className="group rounded-md px-1 py-0.5">
-      <p className="text-xs font-medium text-zinc-400">{label}</p>
+    <div className="group cursor-pointer rounded-md px-1 py-0.5 hover:bg-zinc-50" onClick={() => setEditing(true)}>
+      <div className="flex items-center gap-1">
+        <p className="text-xs font-medium text-zinc-400">{label}</p>
+        <Pencil className="h-3 w-3 text-zinc-300 opacity-0 transition-opacity group-hover:opacity-100" />
+      </div>
       <p
-        className={`mt-0.5 cursor-pointer text-sm text-zinc-900 hover:text-zinc-700 ${!expanded && isLong ? "line-clamp-2" : ""}`}
-        onClick={() => setEditing(true)}
+        className={`mt-0.5 text-sm text-zinc-900 ${!expanded && isLong ? "line-clamp-2" : ""}`}
       >
         {value}
         {suffix}
@@ -633,7 +636,7 @@ function EditableInfoField({
       {isLong && (
         <button
           type="button"
-          onClick={() => setExpanded((v) => !v)}
+          onClick={(e) => { e.stopPropagation(); setExpanded((v) => !v); }}
           className="mt-0.5 text-[11px] font-medium text-indigo-500 hover:text-indigo-700"
         >
           {expanded ? "Voir moins ↑" : "Voir plus ↓"}

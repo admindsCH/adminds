@@ -136,6 +136,7 @@ export interface TemplateResponse {
   has_schema: boolean;
   filename: string;
   size: number;
+  created_at: string;
 }
 
 export interface UserProfile {
@@ -266,6 +267,10 @@ export const api = {
     formData.append("file", file);
     return apiPostFormData<TemplateResponse>("/api/templates", formData);
   },
+
+  /** Rename a template. */
+  renameTemplate: (templateId: string, name: string): Promise<void> =>
+    apiPatch(`/api/templates/${templateId}/rename`, { name }),
 
   /** Delete a template. */
   deleteTemplate: (templateId: string): Promise<void> =>

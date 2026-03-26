@@ -50,6 +50,16 @@ def delete_template(template_id: str) -> None:
         raise HTTPException(status_code=404, detail=str(e))
 
 
+def rename_template(template_id: str, new_name: str) -> None:
+    """Rename a template by updating its blob metadata."""
+    try:
+        meta = blob_storage.get_template_metadata(template_id)
+    except Exception:
+        raise HTTPException(status_code=404, detail="Template introuvable")
+    meta["name"] = new_name
+    blob_storage.update_template_metadata(template_id, meta)
+
+
 async def extract_schema(template_id: str) -> ExtractSchemaResponse:
     """Run or re-run schema extraction on a template."""
     try:

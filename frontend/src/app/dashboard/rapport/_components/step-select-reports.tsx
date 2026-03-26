@@ -32,6 +32,22 @@ function UploadIcon({ className }: { className?: string }) {
   );
 }
 
+function PencilIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
+    </svg>
+  );
+}
+
+function TrashIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+    </svg>
+  );
+}
+
 function SpinnerIcon({ className }: { className?: string }) {
   return (
     <div className={clsx("animate-spin rounded-full border-2 border-current border-t-transparent", className ?? "h-4 w-4")} />
@@ -65,43 +81,138 @@ function DocumentRow({
   template,
   isSelected,
   onToggle,
+  onRename,
+  onDelete,
 }: {
   template: TemplateResponse;
   isSelected: boolean;
   onToggle: () => void;
+  onRename: ((name: string) => void) | null;
+  onDelete: (() => void) | null;
 }) {
+  const [renaming, setRenaming] = useState(false);
+  const [localName, setLocalName] = useState(template.name);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const renameRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (renaming) renameRef.current?.focus();
+  }, [renaming]);
+  useEffect(() => { setLocalName(template.name); }, [template.name]);
+
+  const commitRename = () => {
+    setRenaming(false);
+    if (localName.trim() && localName !== template.name && onRename) {
+      onRename(localName.trim());
+    } else {
+      setLocalName(template.name);
+    }
+  };
+
   const categoryLabel = CATEGORY_LABELS[template.category] ?? template.category;
   const cantonLabel = template.canton === "all" ? null : capitalize(template.canton);
 
   return (
-    <button
-      type="button"
-      onClick={onToggle}
-      className={clsx(
-        "flex w-full items-center gap-4 rounded-xl px-5 py-4 text-left transition-all",
-        isSelected ? "bg-indigo-50 ring-1 ring-indigo-200" : "hover:bg-zinc-50"
+    <div className="relative">
+      <button
+        type="button"
+        onClick={onToggle}
+        className={clsx(
+          "group flex w-full items-center gap-4 rounded-xl px-5 py-4 text-left transition-all",
+          isSelected ? "bg-indigo-50 ring-1 ring-indigo-200" : "hover:bg-zinc-50"
+        )}
+      >
+        <div className="min-w-0 flex-1">
+          {renaming ? (
+            <input
+              ref={renameRef}
+              type="text"
+              value={localName}
+              onChange={(e) => setLocalName(e.target.value)}
+              onBlur={commitRename}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") commitRename();
+                if (e.key === "Escape") { setLocalName(template.name); setRenaming(false); }
+              }}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full rounded border border-indigo-300 bg-white px-2 py-0.5 text-sm font-medium text-zinc-900 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+            />
+          ) : (
+            <p className="text-sm font-medium text-zinc-900">{template.name}</p>
+          )}
+          <p className="mt-0.5 truncate text-xs text-zinc-500">{template.description}</p>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          {cantonLabel && <Badge color="zinc">{cantonLabel}</Badge>}
+          {template.insurance_name && <Badge color="zinc">{template.insurance_name}</Badge>}
+          <Badge color={CATEGORY_BADGE[template.category] ?? "zinc"}>{categoryLabel}</Badge>
+          {!template.has_schema && (
+            <Badge color="amber">En cours</Badge>
+          )}
+        </div>
+
+        {/* Action buttons for non-official templates */}
+        {(onRename || onDelete) && !renaming && (
+          <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+            {onRename && (
+              <span
+                role="button"
+                tabIndex={0}
+                title="Renommer"
+                onClick={(e) => { e.stopPropagation(); setRenaming(true); }}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); setRenaming(true); } }}
+                className="rounded p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600"
+              >
+                <PencilIcon className="h-4 w-4" />
+              </span>
+            )}
+            {onDelete && (
+              <span
+                role="button"
+                tabIndex={0}
+                title="Supprimer"
+                onClick={(e) => { e.stopPropagation(); setConfirmDelete(true); }}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); setConfirmDelete(true); } }}
+                className="rounded p-1 text-zinc-400 hover:bg-red-50 hover:text-red-500"
+              >
+                <TrashIcon className="h-4 w-4" />
+              </span>
+            )}
+          </div>
+        )}
+
+        <div className="shrink-0">
+          {isSelected ? (
+            <CheckCircleIcon className="h-5 w-5 text-indigo-600" />
+          ) : (
+            <div className="h-5 w-5 rounded-full border-2 border-zinc-300" />
+          )}
+        </div>
+      </button>
+
+      {/* Delete confirmation overlay */}
+      {confirmDelete && (
+        <div className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-white/95 backdrop-blur-sm">
+          <div className="flex items-center gap-3">
+            <p className="text-sm text-zinc-700">Supprimer ce modèle ?</p>
+            <button
+              type="button"
+              onClick={() => { onDelete?.(); setConfirmDelete(false); }}
+              className="rounded-lg bg-red-500 px-3 py-1.5 text-xs font-medium text-white hover:bg-red-600"
+            >
+              Supprimer
+            </button>
+            <button
+              type="button"
+              onClick={() => setConfirmDelete(false)}
+              className="rounded-lg border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-600 hover:bg-zinc-50"
+            >
+              Annuler
+            </button>
+          </div>
+        </div>
       )}
-    >
-      <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium text-zinc-900">{template.name}</p>
-        <p className="mt-0.5 truncate text-xs text-zinc-500">{template.description}</p>
-      </div>
-      <div className="flex shrink-0 items-center gap-2">
-        {cantonLabel && <Badge color="zinc">{cantonLabel}</Badge>}
-        {template.insurance_name && <Badge color="zinc">{template.insurance_name}</Badge>}
-        <Badge color={CATEGORY_BADGE[template.category] ?? "zinc"}>{categoryLabel}</Badge>
-        {!template.has_schema && (
-          <Badge color="amber">En cours</Badge>
-        )}
-      </div>
-      <div className="shrink-0">
-        {isSelected ? (
-          <CheckCircleIcon className="h-5 w-5 text-indigo-600" />
-        ) : (
-          <div className="h-5 w-5 rounded-full border-2 border-zinc-300" />
-        )}
-      </div>
-    </button>
+    </div>
   );
 }
 
@@ -160,7 +271,7 @@ export function StepSelectReports({
   const hasActiveFilters = searchQuery !== "" || selectedCategory !== "all" || selectedInsurance !== "all";
 
   const filteredTemplates = useMemo(() => {
-    return templates.filter((t) => {
+    const filtered = templates.filter((t) => {
       if (t.canton !== "all" && t.canton !== canton) return false;
       if (selectedCategory !== "all" && t.category !== selectedCategory) return false;
       if (selectedInsurance !== "all" && t.insurance_id !== selectedInsurance) return false;
@@ -170,6 +281,11 @@ export function StepSelectReports({
         if (!searchable.includes(q)) return false;
       }
       return true;
+    });
+    // Sort: user uploads (non-official) first, then by most recent
+    return filtered.sort((a, b) => {
+      if (a.is_official !== b.is_official) return a.is_official ? 1 : -1;
+      return (b.created_at || "").localeCompare(a.created_at || "");
     });
   }, [templates, canton, selectedCategory, selectedInsurance, searchQuery]);
 
@@ -198,6 +314,26 @@ export function StepSelectReports({
       setUploading(false);
     }
   }, [canton]);
+
+  const handleRename = useCallback(async (templateId: string, newName: string) => {
+    try {
+      await api.renameTemplate(templateId, newName);
+      setTemplates((prev) => prev.map((t) => t.id === templateId ? { ...t, name: newName } : t));
+      onSelectedTemplatesChange((prev) => prev.map((t) => t.id === templateId ? { ...t, name: newName } : t));
+    } catch (e) {
+      console.error("Rename failed:", e);
+    }
+  }, [onSelectedTemplatesChange]);
+
+  const handleDelete = useCallback(async (templateId: string) => {
+    try {
+      await api.deleteTemplate(templateId);
+      setTemplates((prev) => prev.filter((t) => t.id !== templateId));
+      onSelectedTemplatesChange((prev) => prev.filter((t) => t.id !== templateId));
+    } catch (e) {
+      console.error("Delete failed:", e);
+    }
+  }, [onSelectedTemplatesChange]);
 
   return (
     <div>
@@ -334,6 +470,8 @@ export function StepSelectReports({
                 template={template}
                 isSelected={selectedIds.has(template.id)}
                 onToggle={() => toggleTemplate(template)}
+                onRename={!template.is_official ? (name) => handleRename(template.id, name) : null}
+                onDelete={!template.is_official ? () => handleDelete(template.id) : null}
               />
             ))}
           </div>

@@ -110,6 +110,13 @@ class TemplateResponse(BaseModel):
     has_schema: bool = False
     filename: str = ""
     size: int = 0
+    created_at: str = ""
+
+
+class RenameTemplateRequest(BaseModel):
+    """Request body for PATCH /api/templates/{template_id}/rename."""
+
+    name: str = Field(..., min_length=1, max_length=200)
 
 
 class ExtractSchemaResponse(BaseModel):
