@@ -25,7 +25,7 @@ const instrumentSerif = Instrument_Serif({
 
 export const metadata: Metadata = {
   title: {
-    default: "Adminds — Rapports AI psychiatriques assistés par IA",
+    default: "Adminds — Rapports AI et administratif psychiatrique en minutes",
     template: "%s | Adminds",
   },
   description:

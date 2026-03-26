@@ -288,6 +288,13 @@ export const api = {
   updateTemplateSchema: (templateId: string, fields: SchemaFieldResponse[]): Promise<TemplateSchemaResponse> =>
     apiPut<TemplateSchemaResponse>(`/api/templates/${templateId}/schema`, { fields }),
 
+  /** Transcribe an audio blob via Azure Whisper. */
+  transcribeAudio: (blob: Blob): Promise<{ text: string }> => {
+    const formData = new FormData();
+    formData.append("file", blob, "recording.webm");
+    return apiPostFormData<{ text: string }>("/api/transcribe", formData);
+  },
+
   /** Regenerate a single field with optional doctor instructions. */
   regenerateField: (dossierId: string, templateId: string, fieldId: string, instruction?: string, doctorName?: string): Promise<RegenerateFieldResponse> =>
     apiPost<RegenerateFieldResponse>("/api/regenerate-field", {

@@ -9,6 +9,7 @@ from app.classification.schemas import (
     ClassifiedDocument,
     DossierResponse,
     PatientDossierPatch,
+    TranscriptionResponse,
 )
 
 router = APIRouter(tags=["classification"])
@@ -48,3 +49,11 @@ async def patch_dossier(dossier_id: str, patch: PatientDossierPatch) -> DossierR
 async def dossier_chat(req: ChatRequest) -> ChatResponse:
     """Answer a question about the patient dossier using the raw extracted text."""
     return await services.answer_dossier_question(req.question, req.raw_content)
+
+
+@router.post("/transcribe", response_model=TranscriptionResponse)
+async def transcribe(file: UploadFile = File(...)) -> TranscriptionResponse:
+    """Transcribe an audio file using Azure OpenAI Whisper."""
+    file_bytes = await file.read()
+    text = await services.transcribe_audio(file_bytes, file.filename or "audio.webm")
+    return TranscriptionResponse(text=text)

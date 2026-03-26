@@ -1,10 +1,12 @@
-import { useCallback, useState } from "react";
+import { useCallback, useState, useEffect, useRef } from "react";
 import { Subheading } from "@/components/heading";
 import { Text } from "@/components/text";
 import type { WizardDocument } from "../_types";
 import type { CategoryType } from "@/lib/schemas/classification";
 import { useFileUpload } from "../_hooks/use-file-upload";
+import { useAudioRecorder } from "../_hooks/use-audio-recorder";
 import { DocumentListItem } from "./document-list-item";
+import { api } from "@/lib/api";
 import clsx from "clsx";
 
 // ── Icons ────────────────────────────────────────────────
@@ -116,6 +118,53 @@ interface StepDocumentsProps {
 export function StepDocuments({ docs, onDocsChange, notes, onNotesChange, dateFrom, dateTo, onDateFromChange, onDateToChange }: StepDocumentsProps) {
   const { dragging, fileRef, addFiles, onDrop, onDragOver, onDragLeave } =
     useFileUpload(onDocsChange);
+
+  const { isRecording, audioBlob, startRecording, stopRecording } = useAudioRecorder();
+  const [isTranscribing, setIsTranscribing] = useState(false);
+  const [recordingTime, setRecordingTime] = useState(0);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Timer for recording duration display
+  useEffect(() => {
+    if (isRecording) {
+      setRecordingTime(0);
+      timerRef.current = setInterval(() => setRecordingTime((t) => t + 1), 1000);
+    } else if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+  }, [isRecording]);
+
+  // When recording stops and we have a blob, transcribe it
+  useEffect(() => {
+    if (!audioBlob) return;
+    let cancelled = false;
+    setIsTranscribing(true);
+    api.transcribeAudio(audioBlob)
+      .then((res) => {
+        if (!cancelled) onNotesChange((prev) => (prev ? prev + " " + res.text : res.text));
+      })
+      .catch((err) => {
+        if (!cancelled) console.error("Transcription failed:", err);
+      })
+      .finally(() => { if (!cancelled) setIsTranscribing(false); });
+    return () => { cancelled = true; };
+  }, [audioBlob, onNotesChange]);
+
+  const handleMicClick = useCallback(() => {
+    if (isRecording) {
+      stopRecording();
+    } else {
+      startRecording().catch((err) => console.error("Mic access denied:", err));
+    }
+  }, [isRecording, startRecording, stopRecording]);
+
+  const formatTime = (seconds: number) => {
+    const m = Math.floor(seconds / 60).toString().padStart(2, "0");
+    const s = (seconds % 60).toString().padStart(2, "0");
+    return `${m}:${s}`;
+  };
 
   const handleCategoryChange = useCallback((id: string, category: CategoryType) => {
     onDocsChange((prev) =>
@@ -242,13 +291,39 @@ export function StepDocuments({ docs, onDocsChange, notes, onNotesChange, dateFr
       <div className="mt-8 rounded-lg border border-zinc-200 p-4">
         <div className="flex items-center justify-between">
           <Subheading>Notes complémentaires</Subheading>
-          <span className="group relative flex cursor-default items-center gap-1.5 rounded-full bg-zinc-100 px-3 py-1.5 text-xs font-medium text-zinc-400">
-            <MicrophoneIcon className="h-3.5 w-3.5" />
-            Dicter
-            <span className="pointer-events-none absolute -top-8 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-zinc-800 px-2 py-1 text-[11px] text-white opacity-0 transition-opacity group-hover:opacity-100">
-              Coming soon
-            </span>
-          </span>
+          <button
+            type="button"
+            onClick={handleMicClick}
+            disabled={isTranscribing}
+            className={clsx(
+              "flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
+              isRecording
+                ? "bg-red-100 text-red-700 hover:bg-red-200"
+                : isTranscribing
+                  ? "bg-zinc-100 text-zinc-400 cursor-wait"
+                  : "bg-zinc-100 text-zinc-600 hover:bg-indigo-50 hover:text-indigo-600"
+            )}
+          >
+            {isRecording ? (
+              <>
+                <span className="h-2 w-2 rounded-full bg-red-500 animate-pulse" />
+                {formatTime(recordingTime)} — Arrêter
+              </>
+            ) : isTranscribing ? (
+              <>
+                <svg className="h-3.5 w-3.5 animate-spin" viewBox="0 0 24 24" fill="none">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z" />
+                </svg>
+                Transcription...
+              </>
+            ) : (
+              <>
+                <MicrophoneIcon className="h-3.5 w-3.5" />
+                Dicter
+              </>
+            )}
+          </button>
         </div>
         <Text className="mt-1">
           Ajoutez vos observations cliniques, éléments d&apos;anamnèse ou précisions pour le rapport.

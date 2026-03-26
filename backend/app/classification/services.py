@@ -141,6 +141,27 @@ def parse_dossier_stream(files: list[UploadFile]) -> StreamingResponse:
     )
 
 
+async def transcribe_audio(file_bytes: bytes, filename: str) -> str:
+    """Transcribe audio using Azure OpenAI Whisper deployment."""
+    from openai import AzureOpenAI
+
+    from app.config import settings
+
+    client = AzureOpenAI(
+        api_key=settings.azure_openai_api_key,
+        azure_endpoint=settings.azure_openai_endpoint,
+        api_version=settings.azure_openai_api_version,
+    )
+    logger.info(f"Transcribing audio '{filename}' ({len(file_bytes)} bytes)...")
+    result = client.audio.transcriptions.create(
+        model=settings.azure_openai_whisper_deployment,
+        file=(filename, file_bytes),
+        language="fr",
+    )
+    logger.info(f"Transcription done: {len(result.text)} chars")
+    return result.text
+
+
 async def answer_dossier_question(question: str, raw_content: str) -> ChatResponse:
     """Answer a free-form question about the patient dossier."""
     model = get_model()
