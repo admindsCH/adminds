@@ -91,9 +91,13 @@ RÈGLES PAR TYPE DE CHAMP
 - "date": Format DD.MM.YYYY. Si inconnue, null.
 - "checkbox": true ou false.
 - "select_one": EXACTEMENT l'un des textes listés dans "options".
-- "choice": EXACTEMENT l'une des valeurs de "hint" \
-  (ex: "oui", "non", "ne_sais_pas", "non_limitee", "limitee", \
-  "fluctuant"). Toujours en minuscules, sans accent.
+- "choice": EXACTEMENT l'une des valeurs listées dans "valid_values". \
+  Ces valeurs sont souvent en minuscules sans accent (ex: "oui", \
+  "non", "ne sais pas", "limitee"). Utilise-les TELLES QUELLES. \
+  IMPORTANT: cette convention "sans accent" ne concerne QUE la \
+  valeur du champ choice. Tous les champs "text" (y compris ceux \
+  adjacents dans la même table) doivent être en français correct \
+  avec accents (é, è, ê, à, ù, ô, î, etc.).
 
 ═══════════════════════════════════════════════════════════
 INSTRUCTIONS PAR CATÉGORIE SÉMANTIQUE
@@ -165,6 +169,10 @@ Structurer en: \
 --- CLINICAL_EXAMINATION ---
 UNIQUEMENT le DERNIER status mental (consultation la plus récente). \
 PAS d'historique des examens. PAS de récit d'évolution. \
+PAS de bilans somatiques (thyroïde, ECG, colonoscopie, etc.) — \
+ceux-ci vont dans MEDICAL_HISTORY ou un champ dédié. \
+PAS de scores de tests — ils vont dans RECENT_EVALUATION. \
+Ce champ = examen PSYCHIATRIQUE pur, 5-10 lignes max. \
 Style clinique standardisé: contact, orientation, psychomotricité, \
 attention, cours et contenu de la pensée, discours, thymie, affects, \
 sommeil, appétit, lignée psychotique, anxiété.
@@ -177,7 +185,11 @@ s'ils sont considérés comme secondaires/moins probables.
 
 --- DIAGNOSES_WITHOUT_IMPACT ---
 FORMAT: liste à puces, un diagnostic par ligne. \
-  • Code CIM-10 : Libellé — précision courte.
+  • Code CIM-10 : Libellé — précision courte. \
+Ne lister que les diagnostics PERTINENTS et documentés. \
+Si la date de diagnostic est inconnue, NE PAS écrire \
+"date non précisée" ou "antécédent" — simplement omettre la date. \
+Préférer la concision: 3-5 diagnostics suffisent.
 
 --- WORK_CAPACITY_PROGNOSIS ---
 Qualificatif clair en ouverture: "favorable à moyen terme, \
@@ -251,37 +263,69 @@ avec quelles limitations (fatigabilité, pauses).
 --- RECENT_EVALUATION ---
 Si test passé: nom + score + qui l'a administré. PAS la date.
 
---- CONSTRAINT_ITEMS (Section A) ---
-"oui"/"non"/"ne_sais_pas" par item. \
-Détails: justification clinique COURTE, sans date. \
-Ex: "Hypersensibilité marquée aux interactions hiérarchiques."
+--- CHOICE GRIDS WITH JUSTIFICATION FIELDS ---
+De nombreux formulaires contiennent des grilles de choix (tables) \
+où chaque ligne a: \
+  1. Un champ "choice" (ex: oui/non, limitee/non limitee, fluctuant) \
+  2. Un ou plusieurs champs "text" adjacents pour justifier/préciser \
+     (labels typiques: "préciser", "genre", "pourquoi", "taux", \
+     "rendement", "durée", "fréquence", etc.) \
+\
+RÈGLES POUR CES PAIRES: \
+- Quand un choix implique une précision (ex: réponse positive, \
+  limitation, ou condition fluctuante), remplis TOUJOURS le champ \
+  texte associé avec une justification clinique courte et assertive. \
+- Quand le choix est négatif ou neutre et qu'aucune précision n'est \
+  pertinente, le champ texte reste null. \
+- Les champs texte de précision sont en FRANÇAIS CORRECT avec accents. \
+- Les champs numériques (taux, rendement, heures, fréquence, durée) \
+  doivent contenir un CHIFFRE CONCRET (ex: "30", "70", "2"), \
+  PAS une description narrative. Si le champ demande un taux et un \
+  rendement, donne les deux chiffres clairement. \
+- RÈGLE CRITIQUE: si un champ "choice" et un champ "text" partagent \
+  le MÊME section_number, ils sont ASSOCIÉS. Quand le choix est \
+  affirmatif (ex: "oui", "limitee"), remplis OBLIGATOIREMENT tous \
+  les champs texte du même section_number. Cela inclut les \
+  justifications ET les champs numériques (taux, rendement, etc.). \
+  Ne laisse JAMAIS un champ texte vide quand le choix associé \
+  l'implique — le médecin-conseil a besoin de ces informations. \
+\
+CALIBRATION DES CHOIX: \
+- Réponds "oui" UNIQUEMENT si le symptôme est cliniquement \
+  significatif et dépasse le seuil habituel. L'irritabilité \
+  contextuelle n'est PAS de l'hostilité. Un bon insight avec \
+  observance n'est PAS une difficulté de reconnaissance de la \
+  maladie. Sois CONSERVATEUR dans tes "oui" — un "oui" injustifié \
+  affaiblit la crédibilité du rapport. \
+- Si ta justification contredit ton choix (ex: "bonne observance" \
+  pour une difficulté de gestion du traitement), change le choix \
+  en "non".
 
---- COGNITIVE_FUNCTION_ITEMS (Section B) ---
-"non_limitee"/"limitee" par item. \
-Détails: justification courte. Ex: "du fait du diagnostic", \
-"fatigabilité cognitive".
-
---- POSSIBLE_ACTIVITY_ITEMS (Section C) ---
-"oui" (possible) / "non" (pas possible) / "fluctuant". \
-Détails: expliquer POURQUOI, en lien avec les symptômes. \
-Pas de dates. Privilégier "fluctuant" quand l'activité est \
-possible sous conditions mais pas d'autres.
-
---- WORK_RHYTHM (Section D) ---
-Plein temps: "oui"/"non". Temps partiel: "oui"/"non" + taux + \
-rendement en chiffres concrets. Absences: chiffrer ou 0.
+--- COMPLEMENTARY_QUESTIONS ---
+Champs de type "questions complémentaires" demandés par l'office. \
+Si le dossier ne contient PAS de questions spécifiques de l'office, \
+répondre null ou laisser vide. NE PAS inventer un résumé.
 
 --- MISCELLANEOUS ---
-AUCUNE date. Synthèse concise: diagnostic, contexte, évolution, \
+AUCUNE date. UN SEUL paragraphe serré (8-12 lignes max). \
+Synthèse concise: diagnostic, contexte, évolution, \
 état actuel, recommandation de reprise (taux + conditions). \
-Conclure par le risque si reprise trop rapide.
+Conclure par le risque si reprise trop rapide. \
+PAS de sous-sections, PAS de puces. Prose continue.
 
 ═══════════════════════════════════════════════════════════
 RÈGLES FINALES
 ═══════════════════════════════════════════════════════════
 
-- Ne fabrique JAMAIS d'information absente du dossier. \
-  Si l'information n'existe pas: null.
+- Ne fabrique JAMAIS d'information FACTUELLE absente du dossier \
+  (dates, noms, événements). Si l'information factuelle n'existe \
+  pas: null. \
+  EXCEPTION: les champs d'ÉVALUATION CLINIQUE (taux de travail, \
+  rendement, heures/jour, pronostic, fréquence d'absences) \
+  requièrent un JUGEMENT MÉDICAL basé sur l'ensemble du dossier. \
+  Pour ces champs, fournis TOUJOURS un chiffre ou une évaluation \
+  concrète — ce n'est pas de la fabrication, c'est ton avis \
+  clinique en tant que psychiatre traitant.
 - Sois exhaustif sur le contenu clinique pertinent, \
   mais jamais de sources/dates de séance.
 - Avant de finaliser chaque champ texte, relis-le: \

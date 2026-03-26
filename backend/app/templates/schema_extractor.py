@@ -34,6 +34,7 @@ _CHOICE_HEADERS = {
     "non limitée",
     "non limitee",
     "fluctuant",
+    "de manière fluctuante",
     "préciser",
     "preciser",
     "plein temps",
@@ -41,6 +42,16 @@ _CHOICE_HEADERS = {
     "yes",
     "no",
 }
+
+# Normalize header text for matching: strip accents and extra whitespace
+def _normalize_header(text: str) -> str:
+    """Normalize a table header for choice grid detection."""
+    import unicodedata as _ud
+    text = text.strip().lower()
+    text = " ".join(text.split())  # collapse whitespace
+    text = _ud.normalize("NFKD", text)
+    text = text.encode("ascii", "ignore").decode("ascii")
+    return text
 
 _PLACEHOLDER_RE = re.compile(
     r"^[\s_.…\u2026\[\]()]*$"
@@ -346,12 +357,37 @@ def _extract_table_slots(root: etree._Element) -> list[RawSlot]:
         choice_columns = _detect_choice_grid(header_texts)
         table_context = _get_preceding_text(table)
 
+        # Identify which columns are choice columns (for "X" marking)
+        choice_col_indices = set(choice_columns.values()) if choice_columns else set()
+
+        _DETAIL_KEYWORDS = ("préciser", "preciser", "genre", "rendement",
+                            "taux", "durée", "duree", "fréquence", "frequence")
+
         for row_idx, row in enumerate(rows):
             cells = row.findall(f"{W}tc")
+
+            # ── Per-row check: does this row actually follow the choice pattern?
+            # A row follows the choice pattern if the choice columns (oui/non/etc.)
+            # are EMPTY or contain only short markers (x, X, ☒).
+            # If choice columns contain substantial text (e.g. "Fréquence: ..."),
+            # this row is NOT a choice row — treat all its cells as text fields.
+            row_follows_choice = False
+            if choice_columns and row_idx > 0:
+                row_follows_choice = True
+                for _cc_col in choice_col_indices:
+                    if _cc_col < len(cells):
+                        cc_text = _get_cell_text(cells[_cc_col]).strip()
+                        # Choice cells should be empty or contain only short markers
+                        if cc_text and len(cc_text) > 3 and cc_text.lower() not in ("x", "☒", "☐"):
+                            row_follows_choice = False
+                            break
+
             for col_idx, cell in enumerate(cells):
                 cell_text = _get_cell_text(cell).strip()
+                visual_col = _visual_col_index(cells, col_idx)
 
-                if choice_columns and row_idx > 0 and col_idx == 0:
+                if row_follows_choice and visual_col == 0:
+                    # Row label cell in a choice grid → emit choice field
                     if cell_text:
                         context = f"[Table] {table_context} | Row: {cell_text} | Headers: {', '.join(header_texts)}"
                         slots.append(
@@ -360,12 +396,71 @@ def _extract_table_slots(root: etree._Element) -> list[RawSlot]:
                                 position={
                                     "table_index": table_idx,
                                     "row": row_idx,
-                                    "col": col_idx,
+                                    "col": _visual_col_index(cells, col_idx),
                                 },
                                 detected_field_type="choice",
                                 context=context,
                                 options=list(choice_columns.keys()),
                                 choice_columns=choice_columns,
+                            )
+                        )
+                elif row_follows_choice and visual_col not in choice_col_indices and visual_col > 0:
+                    # Non-choice column in a choice grid row → justification/detail text
+                    row_label = _get_cell_text(cells[0]).strip() if cells else ""
+                    col_header = ""
+                    if rows:
+                        header_cells = rows[0].findall(f"{W}tc")
+                        if col_idx < len(header_cells):
+                            col_header = _get_cell_text(header_cells[col_idx]).strip()
+                    is_empty = not cell_text
+                    is_placeholder = bool(cell_text and _PLACEHOLDER_RE.match(cell_text))
+                    is_detail_col = col_header and any(
+                        kw in col_header.lower() for kw in _DETAIL_KEYWORDS
+                    )
+                    is_detail_cell = cell_text and any(
+                        kw in cell_text.lower() for kw in _DETAIL_KEYWORDS
+                    )
+                    if is_empty or is_placeholder or is_detail_col or is_detail_cell:
+                        context = f"[Table] {table_context} | Row: {row_label} | Col: {col_header} | Headers: {', '.join(header_texts)}"
+                        slots.append(
+                            RawSlot(
+                                slot_type="table_cell",
+                                position={
+                                    "table_index": table_idx,
+                                    "row": row_idx,
+                                    "col": _visual_col_index(cells, col_idx),
+                                },
+                                detected_field_type="text",
+                                context=context,
+                            )
+                        )
+                elif choice_columns and row_idx > 0 and not row_follows_choice and visual_col > 0:
+                    # Non-choice row in a choice grid table (e.g. D.3 with "Fréquence"/"Durée")
+                    # → treat each non-label cell as a text field
+                    row_label = _get_cell_text(cells[0]).strip() if cells else ""
+                    col_header = ""
+                    if rows:
+                        header_cells = rows[0].findall(f"{W}tc")
+                        if col_idx < len(header_cells):
+                            col_header = _get_cell_text(header_cells[col_idx]).strip()
+                    is_empty = not cell_text
+                    is_placeholder = bool(cell_text and _PLACEHOLDER_RE.match(cell_text))
+                    has_label_with_space = cell_text and ":" in cell_text
+                    is_detail_cell = cell_text and any(
+                        kw in cell_text.lower() for kw in _DETAIL_KEYWORDS
+                    )
+                    if is_empty or is_placeholder or has_label_with_space or is_detail_cell:
+                        context = f"[Table] {table_context} | Row: {row_label} | Cell: {cell_text} | Headers: {', '.join(header_texts)}"
+                        slots.append(
+                            RawSlot(
+                                slot_type="table_cell",
+                                position={
+                                    "table_index": table_idx,
+                                    "row": row_idx,
+                                    "col": _visual_col_index(cells, col_idx),
+                                },
+                                detected_field_type="text",
+                                context=context,
                             )
                         )
                 elif not choice_columns:
@@ -376,7 +471,7 @@ def _extract_table_slots(root: etree._Element) -> list[RawSlot]:
                     if is_empty or is_placeholder:
                         row_header = (
                             _get_cell_text(cells[0]).strip()
-                            if col_idx > 0 and cells
+                            if visual_col > 0 and cells
                             else ""
                         )
                         col_header = ""
@@ -397,7 +492,7 @@ def _extract_table_slots(root: etree._Element) -> list[RawSlot]:
                                 position={
                                     "table_index": table_idx,
                                     "row": row_idx,
-                                    "col": col_idx,
+                                    "col": _visual_col_index(cells, col_idx),
                                 },
                                 detected_field_type="text",
                                 context=" | ".join(context_parts),
@@ -411,11 +506,13 @@ def _extract_table_slots(root: etree._Element) -> list[RawSlot]:
 def _detect_choice_grid(header_texts: list[str]) -> dict[str, int] | None:
     if len(header_texts) < 2:
         return None
+    # Build a normalized version of _CHOICE_HEADERS for fuzzy matching
+    normalized_headers = {_normalize_header(h) for h in _CHOICE_HEADERS}
     matches = 0
     columns: dict[str, int] = {}
     for col_idx, text in enumerate(header_texts):
-        normalized = text.strip().lower()
-        if normalized in _CHOICE_HEADERS:
+        normalized = _normalize_header(text)
+        if normalized in normalized_headers:
             matches += 1
             columns[normalized] = col_idx
     if matches >= 2:
@@ -425,6 +522,29 @@ def _detect_choice_grid(header_texts: list[str]) -> dict[str, int] | None:
 
 def _get_cell_text(cell: etree._Element) -> str:
     return " ".join(t.text for t in cell.findall(f".//{W}t") if t.text)
+
+
+def _get_cell_grid_span(cell: etree._Element) -> int:
+    """Return the gridSpan value of a cell (1 if not merged)."""
+    tc_pr = cell.find(f"{W}tcPr")
+    if tc_pr is not None:
+        gs = tc_pr.find(f"{W}gridSpan")
+        if gs is not None:
+            try:
+                return int(gs.get(f"{W}val", "1"))
+            except (ValueError, TypeError):
+                pass
+    return 1
+
+
+def _visual_col_index(cells: list, xml_col_idx: int) -> int:
+    """Compute the visual column index of a cell, accounting for gridSpan."""
+    visual = 0
+    for i, cell in enumerate(cells):
+        if i == xml_col_idx:
+            return visual
+        visual += _get_cell_grid_span(cell)
+    return visual
 
 
 def _get_row_texts(row: etree._Element) -> list[str]:

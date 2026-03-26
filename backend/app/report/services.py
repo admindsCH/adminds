@@ -98,6 +98,9 @@ async def _generate_section(
 
     Returns a dict mapping field IDs to generated values.
     """
+    field_ids = [f["id"] for f in section_fields]
+    logger.info(f"Section '{section_name}': sending {len(section_fields)} fields to LLM: {field_ids}")
+
     system_prompt = build_system_prompt(
         canton_name=canton_name,
         field_schema=json.dumps(section_fields, ensure_ascii=False, indent=2),
@@ -120,6 +123,7 @@ async def _generate_section(
     values = {k: v for k, v in values.items() if v is not None}
 
     logger.info(f"Section '{section_name}': {len(values)} fields filled")
+    logger.info(f"Section '{section_name}' field_values: {json.dumps(values, ensure_ascii=False)}")
     return values
 
 

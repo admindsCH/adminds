@@ -1,12 +1,25 @@
 from __future__ import annotations
 
 import io
+import unicodedata
 from typing import Any
 
 from docx import Document
 from lxml import etree
 
+from loguru import logger
+
 from app.templates.schemas import SchemaField, TemplateSchema
+
+
+def _normalize_choice(value: str) -> str:
+    """Normalize a choice value for matching: lowercase, strip accents, underscores→spaces."""
+    value = value.strip().lower()
+    value = value.replace("_", " ")
+    # Strip accents: "limitée" → "limitee", "ne sais pas" stays "ne sais pas"
+    value = unicodedata.normalize("NFKD", value)
+    value = value.encode("ascii", "ignore").decode("ascii")
+    return value
 
 W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
 NS = {"w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main"}
@@ -86,8 +99,13 @@ def _fill_table_cell(
     table = tables[table_index]
 
     if field.field_type == "choice" and field.choice_columns:
-        # Look up which column to place "X" in
-        target_col = field.choice_columns.get(str(value).lower())
+        # Normalize both the LLM value and the schema keys for fuzzy matching
+        normalized_value = _normalize_choice(str(value))
+        # Build normalized lookup: normalized_key → column_index
+        normalized_map = {
+            _normalize_choice(k): v for k, v in field.choice_columns.items()
+        }
+        target_col = normalized_map.get(normalized_value)
         if target_col is not None:
             _add_text_to_cell(table, row, target_col, "X")
     else:
@@ -213,6 +231,35 @@ def _fill_select_one(
                     break
 
 
+def _resolve_cell_by_visual_col(
+    row_el: etree._Element,
+    visual_col: int,
+) -> etree._Element | None:
+    """Find the table cell at a given visual column, accounting for gridSpan.
+
+    In Word XML, a cell with <w:gridSpan w:val="2"/> occupies 2 visual columns
+    but is only 1 <w:tc> element. This function maps visual column indices
+    to the correct XML cell element.
+    """
+    cells = row_el.findall("w:tc", NS)
+    current_visual = 0
+    for cell in cells:
+        # Check gridSpan
+        tc_pr = cell.find("w:tcPr", NS)
+        span = 1
+        if tc_pr is not None:
+            grid_span = tc_pr.find("w:gridSpan", NS)
+            if grid_span is not None:
+                try:
+                    span = int(grid_span.get(f"{W}val", "1"))
+                except (ValueError, TypeError):
+                    span = 1
+        if current_visual <= visual_col < current_visual + span:
+            return cell
+        current_visual += span
+    return None
+
+
 def _add_text_to_cell(
     table: etree._Element,
     row: int,
@@ -220,15 +267,16 @@ def _add_text_to_cell(
     text: str,
     size_pt: int = 8,
 ) -> None:
-    """Insert a text run into a table cell."""
+    """Insert a text run into a table cell, accounting for merged cells (gridSpan)."""
     rows = table.findall("w:tr", NS)
     if row >= len(rows):
-        return
-    cells = rows[row].findall("w:tc", NS)
-    if col >= len(cells):
+        logger.warning(f"_add_text_to_cell: row {row} out of bounds (table has {len(rows)} rows)")
         return
 
-    cell = cells[col]
+    cell = _resolve_cell_by_visual_col(rows[row], col)
+    if cell is None:
+        logger.warning(f"_add_text_to_cell: visual col {col} not found in row {row}, text='{text[:50]}'")
+        return
     p = cell.find("w:p", NS)
     if p is None:
         return
@@ -255,11 +303,12 @@ def _replace_cell_label(
     rows = table.findall("w:tr", NS)
     if row >= len(rows):
         return
-    cells = rows[row].findall("w:tc", NS)
-    if col >= len(cells):
+
+    cell = _resolve_cell_by_visual_col(rows[row], col)
+    if cell is None:
         return
 
-    for t in cells[col].findall(f".//{W}t"):
+    for t in cell.findall(f".//{W}t"):
         if t.text and original in t.text:
             t.text = t.text.replace(original, replacement)
             return

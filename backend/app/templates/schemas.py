@@ -90,6 +90,8 @@ class TemplateSchema(BaseModel):
                 entry["hint"] = f.hint
             if f.options:
                 entry["options"] = f.options
+            if f.choice_columns:
+                entry["valid_values"] = list(f.choice_columns.keys())
             result.append(entry)
         return result
 
