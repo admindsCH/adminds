@@ -1,3 +1,10 @@
+## [0.2.2](https://github.com/admindsCH/adminds/compare/v0.2.1...v0.2.2) (2026-03-27)
+
+
+### Bug Fixes
+
+* responsiveness and debugging steps ([98815b8](https://github.com/admindsCH/adminds/commit/98815b8ae451a7dc4cefa04850d91b6fa2618c4f))
+
 ## [0.2.1](https://github.com/admindsCH/adminds/compare/v0.2.0...v0.2.1) (2026-03-27)
 
 
