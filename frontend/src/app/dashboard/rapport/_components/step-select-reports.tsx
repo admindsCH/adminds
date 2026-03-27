@@ -118,81 +118,86 @@ function DocumentRow({
         type="button"
         onClick={onToggle}
         className={clsx(
-          "group flex w-full flex-wrap items-center gap-3 rounded-xl px-4 py-3 text-left transition-all sm:flex-nowrap sm:gap-4 sm:px-5 sm:py-4",
+          "group w-full rounded-xl px-4 py-3 text-left transition-all sm:px-5 sm:py-4",
           isSelected ? "bg-indigo-50 ring-1 ring-indigo-200" : "hover:bg-zinc-50"
         )}
       >
-        <div className="min-w-0 flex-1">
-          {renaming ? (
-            <input
-              ref={renameRef}
-              type="text"
-              value={localName}
-              onChange={(e) => setLocalName(e.target.value)}
-              onBlur={commitRename}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") commitRename();
-                if (e.key === "Escape") { setLocalName(template.name); setRenaming(false); }
-              }}
-              onClick={(e) => e.stopPropagation()}
-              className="w-full rounded border border-indigo-300 bg-white px-2 py-0.5 text-sm font-medium text-zinc-900 focus:outline-none focus:ring-2 focus:ring-indigo-200"
-            />
-          ) : (
-            <p className="text-sm font-medium text-zinc-900">{template.name}</p>
-          )}
-          <p className="mt-0.5 truncate text-xs text-zinc-500">
-            {template.description}
-            {template.created_at && (
-              <span className="ml-2 text-zinc-400">
-                · {new Date(template.created_at).toLocaleDateString("fr-CH", { day: "numeric", month: "short", year: "numeric" })}
-              </span>
+        {/* Top row: name + description + check circle */}
+        <div className="flex items-center gap-3">
+          <div className="min-w-0 flex-1">
+            {renaming ? (
+              <input
+                ref={renameRef}
+                type="text"
+                value={localName}
+                onChange={(e) => setLocalName(e.target.value)}
+                onBlur={commitRename}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") commitRename();
+                  if (e.key === "Escape") { setLocalName(template.name); setRenaming(false); }
+                }}
+                onClick={(e) => e.stopPropagation()}
+                className="w-full rounded border border-indigo-300 bg-white px-2 py-0.5 text-sm font-medium text-zinc-900 focus:outline-none focus:ring-2 focus:ring-indigo-200"
+              />
+            ) : (
+              <p className="text-sm font-medium text-zinc-900">{template.name}</p>
             )}
-          </p>
+            <p className="mt-0.5 truncate text-xs text-zinc-500">
+              {template.description}
+              {template.created_at && (
+                <span className="ml-2 text-zinc-400">
+                  · {new Date(template.created_at).toLocaleDateString("fr-CH", { day: "numeric", month: "short", year: "numeric" })}
+                </span>
+              )}
+            </p>
+          </div>
+
+          {/* Action buttons for non-official templates */}
+          {(onRename || onDelete) && !renaming && (
+            <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+              {onRename && (
+                <span
+                  role="button"
+                  tabIndex={0}
+                  title="Renommer"
+                  onClick={(e) => { e.stopPropagation(); setRenaming(true); }}
+                  onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); setRenaming(true); } }}
+                  className="rounded p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600"
+                >
+                  <PencilIcon className="h-4 w-4" />
+                </span>
+              )}
+              {onDelete && (
+                <span
+                  role="button"
+                  tabIndex={0}
+                  title="Supprimer"
+                  onClick={(e) => { e.stopPropagation(); setConfirmDelete(true); }}
+                  onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); setConfirmDelete(true); } }}
+                  className="rounded p-1 text-zinc-400 hover:bg-red-50 hover:text-red-500"
+                >
+                  <TrashIcon className="h-4 w-4" />
+                </span>
+              )}
+            </div>
+          )}
+
+          <div className="shrink-0">
+            {isSelected ? (
+              <CheckCircleIcon className="h-5 w-5 text-indigo-600" />
+            ) : (
+              <div className="h-5 w-5 rounded-full border-2 border-zinc-300" />
+            )}
+          </div>
         </div>
-        <div className="flex shrink-0 flex-wrap items-center gap-1.5 sm:gap-2">
+
+        {/* Bottom row: badges */}
+        <div className="mt-2 flex flex-wrap items-center gap-1.5">
           {cantonLabel && <Badge color="zinc">{cantonLabel}</Badge>}
           {template.insurance_name && <Badge color="zinc">{template.insurance_name}</Badge>}
           <Badge color={CATEGORY_BADGE[template.category] ?? "zinc"}>{categoryLabel}</Badge>
           {!template.has_schema && (
             <Badge color="amber">En cours</Badge>
-          )}
-        </div>
-
-        {/* Action buttons for non-official templates */}
-        {(onRename || onDelete) && !renaming && (
-          <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-            {onRename && (
-              <span
-                role="button"
-                tabIndex={0}
-                title="Renommer"
-                onClick={(e) => { e.stopPropagation(); setRenaming(true); }}
-                onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); setRenaming(true); } }}
-                className="rounded p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600"
-              >
-                <PencilIcon className="h-4 w-4" />
-              </span>
-            )}
-            {onDelete && (
-              <span
-                role="button"
-                tabIndex={0}
-                title="Supprimer"
-                onClick={(e) => { e.stopPropagation(); setConfirmDelete(true); }}
-                onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); setConfirmDelete(true); } }}
-                className="rounded p-1 text-zinc-400 hover:bg-red-50 hover:text-red-500"
-              >
-                <TrashIcon className="h-4 w-4" />
-              </span>
-            )}
-          </div>
-        )}
-
-        <div className="shrink-0">
-          {isSelected ? (
-            <CheckCircleIcon className="h-5 w-5 text-indigo-600" />
-          ) : (
-            <div className="h-5 w-5 rounded-full border-2 border-zinc-300" />
           )}
         </div>
       </button>

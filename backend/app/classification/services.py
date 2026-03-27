@@ -123,16 +123,37 @@ def parse_dossier_stream(files: list[UploadFile]) -> StreamingResponse:
             extract_dossier(combined_text, on_step_done=on_step_done)
         )
 
+        # Wait for progress events with periodic heartbeats to keep connection alive
         total_steps = len(RUBRIQUE_PROMPTS) + 1  # rubriques + patient_info
-        for _ in range(total_steps):
-            key = await queue.get()
-            yield sse({"type": "progress", "step": key})
+        received = 0
+        while received < total_steps:
+            try:
+                key = await asyncio.wait_for(queue.get(), timeout=15)
+                received += 1
+                yield sse({"type": "progress", "step": key})
+            except asyncio.TimeoutError:
+                # Send heartbeat to keep mobile connections alive
+                yield ": keepalive\n\n"
+                # If extraction already finished (e.g. a step failed without
+                # calling on_step_done), stop waiting for more progress events.
+                if extraction_task.done():
+                    break
 
-        dossier: PatientDossier = await extraction_task
+        try:
+            dossier: PatientDossier = await extraction_task
+        except Exception as e:
+            logger.exception("Dossier extraction failed")
+            yield sse({"type": "error", "message": str(e)})
+            return
 
         # 4. Store and emit the final complete event
-        response = crud.create_dossier(dossier)
-        yield sse({"type": "complete", "dossier_id": response.dossier_id, "dossier": response.dossier.model_dump()})
+        try:
+            response = crud.create_dossier(dossier)
+            yield sse({"type": "complete", "dossier_id": response.dossier_id, "dossier": response.dossier.model_dump()})
+        except Exception as e:
+            logger.exception("Failed to store dossier")
+            yield sse({"type": "error", "message": str(e)})
+            return
 
     return StreamingResponse(
         generate(),

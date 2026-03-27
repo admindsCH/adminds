@@ -353,43 +353,42 @@ export function StepSummary({ docs, notes, dateFrom, dateTo, dossierId, dossier,
     [dossierId, onDossierChange],
   );
 
-  // ── Auto-parse dossier on mount ─────────────────────────
+  // ── Parse dossier ───────────────────────────────────────
   const parseStarted = useRef(false);
 
-  useEffect(() => {
-    if (dossier) return;
-    if (parseStarted.current) return;
-
+  const runParse = useCallback(async () => {
     const files = filteredDocs.map((d) => d.file);
     if (files.length === 0) return;
 
-    parseStarted.current = true;
-
-    async function parse() {
-      setParsing(true);
-      setDoneSteps(new Set());
-      setError(null);
-      try {
-        const { dossier_id, dossier: parsed } = await api.parseDossierStream(files, (event) => {
-          if (event.type === "progress" && event.step) {
-            setDoneSteps((prev) => new Set([...prev, event.step!]));
-          }
-        });
-        setDoneSteps(new Set(STEP_ORDER)); // mark all done before unmounting progress
-        if (notes) {
-          const { dossier: withNotes } = await api.updateDossier(dossier_id, { notes });
-          onDossierChange(dossier_id, withNotes);
-        } else {
-          onDossierChange(dossier_id, parsed);
+    setParsing(true);
+    setDoneSteps(new Set());
+    setError(null);
+    try {
+      const { dossier_id, dossier: parsed } = await api.parseDossierStream(files, (event) => {
+        if (event.type === "progress" && event.step) {
+          setDoneSteps((prev) => new Set([...prev, event.step!]));
         }
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "Erreur inattendue");
-      } finally {
-        setParsing(false);
+      });
+      setDoneSteps(new Set(STEP_ORDER)); // mark all done before unmounting progress
+      if (notes) {
+        const { dossier: withNotes } = await api.updateDossier(dossier_id, { notes });
+        onDossierChange(dossier_id, withNotes);
+      } else {
+        onDossierChange(dossier_id, parsed);
       }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Erreur inattendue");
+    } finally {
+      setParsing(false);
     }
+  }, [filteredDocs, notes, onDossierChange]);
 
-    parse();
+  // Auto-parse on mount
+  useEffect(() => {
+    if (dossier) return;
+    if (parseStarted.current) return;
+    parseStarted.current = true;
+    runParse();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (parsing) return <StreamingProgress doneSteps={doneSteps} />;
@@ -399,6 +398,13 @@ export function StepSummary({ docs, notes, dateFrom, dateTo, dossierId, dossier,
       <div className="rounded-lg border border-red-200 bg-red-50 px-6 py-8 text-center">
         <Text className="font-medium text-red-700">Erreur lors de l&apos;analyse</Text>
         <Text className="mt-1 text-sm text-red-600">{error}</Text>
+        <button
+          type="button"
+          onClick={runParse}
+          className="mt-4 inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+        >
+          Réessayer
+        </button>
       </div>
     );
   }

@@ -216,19 +216,23 @@ export const api = {
       const lines = buffer.split("\n\n");
       buffer = lines.pop() ?? "";
       for (const chunk of lines) {
+        // Skip SSE comments (heartbeat keepalives)
+        if (chunk.startsWith(":")) continue;
         const dataLine = chunk.startsWith("data: ") ? chunk.slice(6) : null;
         if (!dataLine) continue;
+        let event: Record<string, unknown>;
         try {
-          const event = JSON.parse(dataLine);
-          if (event.type === "complete") return event as import("@/lib/schemas/classification").DossierResponse;
-          onEvent(event);
+          event = JSON.parse(dataLine);
         } catch {
-          // malformed chunk — skip
+          continue; // malformed chunk — skip
         }
+        if (event.type === "complete") return event as unknown as import("@/lib/schemas/classification").DossierResponse;
+        if (event.type === "error") throw new Error((event.message as string) || "Erreur serveur");
+        onEvent(event as { type: string; step?: string });
       }
       if (done) break;
     }
-    throw new Error("Stream ended without completion event");
+    throw new Error("La connexion a été interrompue. Veuillez réessayer.");
   },
 
   /** Fetch a stored dossier by ID. */
