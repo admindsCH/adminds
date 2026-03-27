@@ -206,8 +206,13 @@ export const api = {
 
     while (true) {
       const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
+      if (done) {
+        // Flush remaining bytes and ensure final event gets split
+        buffer += decoder.decode();
+        if (buffer.trim()) buffer += "\n\n";
+      } else {
+        buffer += decoder.decode(value, { stream: true });
+      }
       const lines = buffer.split("\n\n");
       buffer = lines.pop() ?? "";
       for (const chunk of lines) {
@@ -221,6 +226,7 @@ export const api = {
           // malformed chunk — skip
         }
       }
+      if (done) break;
     }
     throw new Error("Stream ended without completion event");
   },

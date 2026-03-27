@@ -43,7 +43,7 @@ export function DocumentListItem({
   onDelete,
 }: DocumentListItemProps) {
   return (
-    <li className="flex items-center gap-3 px-4 py-3">
+    <li className="flex flex-wrap items-center gap-2 px-3 py-3 sm:flex-nowrap sm:gap-3 sm:px-4">
       {/* File icon */}
       <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-indigo-50">
         <svg className="h-4 w-4 text-indigo-400" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
@@ -52,7 +52,7 @@ export function DocumentListItem({
       </div>
 
       {/* Name + size + interne/externe badge */}
-      <div className="min-w-0 shrink-0">
+      <div className="min-w-0 flex-1 sm:flex-initial sm:shrink-0">
         <div className="flex items-center gap-1.5">
           <p className="truncate text-sm font-medium text-zinc-900">
             {doc.fileName}
@@ -70,9 +70,23 @@ export function DocumentListItem({
         </p>
       </div>
 
+      {/* Delete button — on mobile, show next to file name */}
+      {onDelete && (
+        <button
+          type="button"
+          onClick={() => onDelete(doc.id)}
+          className="shrink-0 rounded p-1 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-600 sm:order-last"
+          aria-label={`Supprimer ${doc.fileName}`}
+        >
+          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+          </svg>
+        </button>
+      )}
+
       {/* Category badges — all shown when done, selected one highlighted */}
       {doc.status === "done" && (
-        <div className="flex flex-1 flex-wrap items-center gap-1.5 pl-2">
+        <div className="flex w-full flex-wrap items-center gap-1 sm:w-auto sm:flex-1 sm:gap-1.5 sm:pl-2">
           {ALL_CATEGORIES.map((cat) => {
             const isSelected = doc.category === cat;
             return (
@@ -105,20 +119,6 @@ export function DocumentListItem({
           <span className={`h-2 w-2 rounded-full ${STATUS_DOT[doc.status]}`} />
           <span className="text-xs text-red-500">Erreur de classification</span>
         </div>
-      )}
-
-      {/* Delete button */}
-      {onDelete && (
-        <button
-          type="button"
-          onClick={() => onDelete(doc.id)}
-          className="shrink-0 rounded p-1 text-zinc-400 transition-colors hover:bg-zinc-100 hover:text-zinc-600"
-          aria-label={`Supprimer ${doc.fileName}`}
-        >
-          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-          </svg>
-        </button>
       )}
     </li>
   );

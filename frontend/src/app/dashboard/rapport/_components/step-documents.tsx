@@ -178,7 +178,7 @@ export function StepDocuments({ docs, onDocsChange, notes, onNotesChange, dateFr
   return (
     <div>
       {/* Date filter — discreet row at the top */}
-      <div className="mb-6 flex items-center gap-3 text-sm text-zinc-500">
+      <div className="mb-6 flex flex-wrap items-center gap-2 text-sm text-zinc-500 sm:gap-3">
         <span className="text-xs font-medium text-zinc-400">Période :</span>
         <div className="flex items-center gap-1.5">
           <span className="text-xs text-zinc-400">Du</span>

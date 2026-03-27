@@ -118,7 +118,7 @@ function DocumentRow({
         type="button"
         onClick={onToggle}
         className={clsx(
-          "group flex w-full items-center gap-4 rounded-xl px-5 py-4 text-left transition-all",
+          "group flex w-full flex-wrap items-center gap-3 rounded-xl px-4 py-3 text-left transition-all sm:flex-nowrap sm:gap-4 sm:px-5 sm:py-4",
           isSelected ? "bg-indigo-50 ring-1 ring-indigo-200" : "hover:bg-zinc-50"
         )}
       >
@@ -149,7 +149,7 @@ function DocumentRow({
             )}
           </p>
         </div>
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex shrink-0 flex-wrap items-center gap-1.5 sm:gap-2">
           {cantonLabel && <Badge color="zinc">{cantonLabel}</Badge>}
           {template.insurance_name && <Badge color="zinc">{template.insurance_name}</Badge>}
           <Badge color={CATEGORY_BADGE[template.category] ?? "zinc"}>{categoryLabel}</Badge>
