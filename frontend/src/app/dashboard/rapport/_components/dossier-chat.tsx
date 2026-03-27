@@ -72,13 +72,13 @@ export function DossierChat({ dossier }: DossierChatProps) {
   return (
     <div className="rounded-lg border border-zinc-200 overflow-hidden">
       {/* Header */}
-      <div className="flex items-center gap-3 bg-gradient-to-r from-indigo-50 to-violet-50 px-4 py-3">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white shadow-sm">
+      <div className="flex items-center gap-2 bg-gradient-to-r from-indigo-50 to-violet-50 px-3 py-2.5 sm:gap-3 sm:px-4 sm:py-3">
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white shadow-sm">
           <Search className="h-4 w-4 text-indigo-600" />
         </div>
-        <div className="flex-1">
+        <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold text-zinc-900">Rechercher dans le dossier</p>
-          <p className="text-[11px] text-zinc-500">Posez une question pour trouver une information dans les données patient</p>
+          <p className="hidden text-[11px] text-zinc-500 sm:block">Posez une question pour trouver une information dans les données patient</p>
         </div>
         {hasMessages && (
           <button
@@ -92,12 +92,12 @@ export function DossierChat({ dossier }: DossierChatProps) {
 
       {/* Suggestions (when no messages) */}
       {!hasMessages && (
-        <div className="flex gap-2 border-b border-zinc-100 bg-zinc-50/30 px-4 py-2.5">
+        <div className="flex flex-wrap gap-1.5 border-b border-zinc-100 bg-zinc-50/30 px-3 py-2 sm:gap-2 sm:px-4 sm:py-2.5">
           {SUGGESTIONS.map((s) => (
             <button
               key={s}
               onClick={() => submit(s)}
-              className="rounded-full border border-zinc-200 bg-white px-3 py-1 text-[11px] font-medium text-zinc-600 hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700 transition-colors shadow-sm"
+              className="rounded-full border border-zinc-200 bg-white px-2.5 py-1 text-[11px] font-medium text-zinc-600 hover:border-indigo-300 hover:bg-indigo-50 hover:text-indigo-700 transition-colors shadow-sm sm:px-3"
             >
               {s}
             </button>

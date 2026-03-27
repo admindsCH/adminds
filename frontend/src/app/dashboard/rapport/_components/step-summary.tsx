@@ -426,9 +426,9 @@ export function StepSummary({ docs, notes, dateFrom, dateTo, dossierId, dossier,
   return (
     <div className="flex flex-col gap-6">
       {/* ── Patient info ── */}
-      <div className="rounded-lg border border-zinc-200 p-4">
+      <div className="rounded-lg border border-zinc-200 p-3 sm:p-4">
         <Subheading>Patient</Subheading>
-        <div className="mt-2 grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-[1fr_1fr_2fr_2fr]">
+        <div className="mt-2 grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-[1fr_1fr_2fr_2fr]">
           <EditableInfoField
             label="Âge"
             value={patient_info.age != null ? `${patient_info.age}` : ""}

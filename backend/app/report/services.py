@@ -163,6 +163,14 @@ async def generate_report(
         f"across {len(section_groups)} sections"
     )
 
+    # Debug: save generation inputs
+    safe_template_id = template_id.replace("/", "_")
+    store.save_debug(dossier_id, f"gen_{safe_template_id}_prompt_schema.json", prompt_schema)
+    store.save_debug(dossier_id, f"gen_{safe_template_id}_patient_context.txt", patient_context)
+    store.save_debug(dossier_id, f"gen_{safe_template_id}_sections.json", {
+        name: fields for name, fields in section_groups.items()
+    })
+
     section_results = await asyncio.gather(
         *(
             _generate_section(
@@ -180,6 +188,12 @@ async def generate_report(
         field_values.update(section_vals)
 
     logger.info(f"LLM returned {len(field_values)} field values")
+
+    # Debug: save per-section results and merged field values
+    for (section_name, _), section_vals in zip(section_groups.items(), section_results):
+        safe_section = section_name.replace("/", "_").replace(" ", "_")[:50]
+        store.save_debug(dossier_id, f"gen_{safe_template_id}_section_{safe_section}.json", section_vals)
+    store.save_debug(dossier_id, f"gen_{safe_template_id}_merged_field_values.json", field_values)
 
     # 6. Fill template
     template_bytes = blob_storage.download_template(template_id)

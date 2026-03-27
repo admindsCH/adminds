@@ -112,6 +112,10 @@ def parse_dossier_stream(files: list[UploadFile]) -> StreamingResponse:
         combined_text = "\n\n".join(text_parts)
         yield sse({"type": "progress", "step": "extraction"})
 
+        # Debug: save extracted text per file and combined
+        # (dossier_id not yet known, use a temp ref; will be moved after creation)
+        _debug_texts = text_parts  # keep reference for later
+
         # 2. Queue receives a key each time a rubrique finishes
         queue: asyncio.Queue[str] = asyncio.Queue()
 
@@ -149,7 +153,26 @@ def parse_dossier_stream(files: list[UploadFile]) -> StreamingResponse:
         # 4. Store and emit the final complete event
         try:
             response = crud.create_dossier(dossier)
-            yield sse({"type": "complete", "dossier_id": response.dossier_id, "dossier": response.dossier.model_dump()})
+            did = response.dossier_id
+
+            # Save debug artifacts
+            from app.classification.store import save_debug
+            # a) Individual extracted texts per file
+            for i, part in enumerate(_debug_texts):
+                save_debug(did, f"extracted_{i:02d}.txt", part)
+            # b) Combined text
+            save_debug(did, "combined_text.txt", combined_text)
+            # c) Each rubrique as individual JSON
+            for rub_key in ["r01_historique", "r02_clinique", "r03_traitement",
+                            "r04_professionnel", "r05_capacite_travail",
+                            "r06_readaptation", "r07_freins_cognition", "r08_activites"]:
+                rub = getattr(dossier.rubriques, rub_key)
+                save_debug(did, f"rubrique_{rub_key}.json", rub.model_dump())
+            # d) Patient info
+            save_debug(did, "patient_info.json", dossier.patient_info.model_dump())
+            logger.info(f"Debug artifacts saved for dossier {did}")
+
+            yield sse({"type": "complete", "dossier_id": did, "dossier": response.dossier.model_dump()})
         except Exception as e:
             logger.exception("Failed to store dossier")
             yield sse({"type": "error", "message": str(e)})

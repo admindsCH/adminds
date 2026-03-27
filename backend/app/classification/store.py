@@ -108,6 +108,24 @@ def update_dossier(dossier_id: str, patch: dict) -> PatientDossier | None:
     return updated
 
 
+def save_debug(dossier_id: str, filename: str, data: str | dict | list) -> Path:
+    """Save a debug artifact to the dossier's debug/ subfolder.
+
+    Accepts a string (written as-is) or a dict/list (written as JSON).
+    Returns the file path.
+    """
+    folder = _dossier_dir(dossier_id) / "debug"
+    folder.mkdir(parents=True, exist_ok=True)
+    path = folder / filename
+    if isinstance(data, str):
+        path.write_text(data, encoding="utf-8")
+    else:
+        path.write_text(
+            json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+    return path
+
+
 def save_field_values(dossier_id: str, field_values: dict) -> Path:
     """Save the LLM-generated field values alongside the dossier.
 

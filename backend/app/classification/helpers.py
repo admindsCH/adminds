@@ -47,7 +47,11 @@ def extract_text(filename: str, file_bytes: bytes) -> str:
         tmp.flush()
 
         logger.info(f"Extracting text from '{filename}' via LiteParse...")
-        result = _parser.parse(tmp.name, ocr_language="fra")
+        try:
+            result = _parser.parse(tmp.name, ocr_language="fra")
+        except Exception:
+            logger.exception(f"LiteParse failed for '{filename}'")
+            return f"[Erreur d'extraction: {filename}]"
 
     logger.info(
         f"Extracted {len(result.text)} chars from '{filename}' "

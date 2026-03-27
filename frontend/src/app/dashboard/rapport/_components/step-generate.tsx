@@ -252,7 +252,7 @@ function EditorSectionPanel({
                     )}
                   </div>
                   {showInstruction && (
-                    <div className="mb-2 flex gap-2">
+                    <div className="mb-2 flex flex-col gap-2 sm:flex-row">
                       <input
                         type="text"
                         value={instructionText}
@@ -427,24 +427,24 @@ function DocumentDetailView({
   return (
     <div>
       {/* Header — back button, title, action buttons (modify + downloads) */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
+      <div className="space-y-3">
+        <div className="flex items-center gap-3 sm:gap-4">
           <button
             type="button"
             onClick={onBack}
-            className="rounded-lg p-2 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600"
+            className="shrink-0 rounded-lg p-2 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-600"
           >
             <ArrowLeftIcon className="h-5 w-5" />
           </button>
-          <div>
-            <div className="flex items-center gap-2">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
               <Subheading>{item.template.name}</Subheading>
               <Badge color="zinc">{insuranceName || "—"}</Badge>
             </div>
             <Text className="mt-0.5">Document généré</Text>
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           {hasEditor && (
             <Button outline onClick={() => setShowEditor(!showEditor)}>
               <PencilIcon className="h-4 w-4" />
@@ -489,9 +489,9 @@ function DocumentDetailView({
             onClick={() => setShowEditor(false)}
           />
           {/* Panel */}
-          <div className="fixed inset-y-0 right-0 z-50 flex w-full max-w-xl flex-col border-l border-zinc-200 bg-white shadow-xl">
+          <div className="fixed inset-y-0 right-0 z-50 flex w-full flex-col border-l border-zinc-200 bg-white shadow-xl sm:max-w-xl">
             {/* Panel header */}
-            <div className="flex items-center justify-between border-b border-zinc-200 px-5 py-4">
+            <div className="flex items-center justify-between border-b border-zinc-200 px-4 py-3 sm:px-5 sm:py-4">
               <span className="text-sm font-semibold text-zinc-900">Modifier le rapport</span>
               <button
                 type="button"
@@ -503,7 +503,7 @@ function DocumentDetailView({
             </div>
 
             {/* Scrollable sections */}
-            <div className="flex-1 overflow-y-auto p-5">
+            <div className="flex-1 overflow-y-auto p-4 sm:p-5">
               <div className="flex flex-col gap-3">
                 {editorSections.map((section) => (
                   <EditorSectionPanel
@@ -524,7 +524,7 @@ function DocumentDetailView({
             </div>
 
             {/* Footer with global update button */}
-            <div className="border-t border-zinc-200 px-5 py-3 flex justify-end">
+            <div className="border-t border-zinc-200 px-4 py-3 flex justify-end sm:px-5">
               <Button color="indigo" onClick={handleUpdate} disabled={updating}>
                 {updating ? "Mise à jour..." : "Mettre à jour le document"}
               </Button>
@@ -603,13 +603,13 @@ function GenerationView({
                 disabled={!isDone}
                 onClick={() => isDone && onViewItem(item.template.id)}
                 className={clsx(
-                  "flex w-full items-center gap-4 rounded-xl border border-zinc-100 bg-white px-5 py-4 text-left transition-all",
+                  "flex w-full items-center gap-3 rounded-xl border border-zinc-100 bg-white px-4 py-3 text-left transition-all sm:gap-4 sm:px-5 sm:py-4",
                   isDone && "cursor-pointer hover:border-indigo-200 hover:bg-indigo-50/50",
                   !isDone && "cursor-default"
                 )}
               >
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
                     <p className="text-sm font-medium text-zinc-900">{item.template.name}</p>
                     <Badge color="zinc">{insuranceName || "—"}</Badge>
                   </div>
