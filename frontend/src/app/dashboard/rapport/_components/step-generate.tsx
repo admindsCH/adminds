@@ -7,7 +7,7 @@ import { Badge } from "@/components/badge";
 import { Text } from "@/components/text";
 import { Subheading } from "@/components/heading";
 import { api, type TemplateResponse } from "@/lib/api";
-import type { FieldSchemaEntry } from "@/lib/schemas/report";
+import type { DoctorProfile, FieldSchemaEntry } from "@/lib/schemas/report";
 import { renderAsync } from "docx-preview";
 import clsx from "clsx";
 
@@ -175,6 +175,7 @@ function EditorSectionPanel({
   dossierId,
   templateId,
   doctorName,
+  doctorProfile,
   onFieldRegenerated,
 }: {
   section: EditorSection;
@@ -186,6 +187,7 @@ function EditorSectionPanel({
   dossierId: string | null;
   templateId: string;
   doctorName?: string;
+  doctorProfile?: DoctorProfile;
   onFieldRegenerated: (fieldId: string, value: string) => void;
 }) {
   const [instructionFieldId, setInstructionFieldId] = useState<string | null>(null);
@@ -196,7 +198,7 @@ function EditorSectionPanel({
     if (!dossierId) return;
     setRegeneratingFieldId(fieldId);
     try {
-      const result = await api.regenerateField(dossierId, templateId, fieldId, instructionText || undefined, doctorName);
+      const result = await api.regenerateField(dossierId, templateId, fieldId, instructionText || undefined, doctorName, doctorProfile);
       onFieldRegenerated(result.field_id, result.value);
       setInstructionFieldId(null);
       setInstructionText("");
@@ -205,7 +207,7 @@ function EditorSectionPanel({
     } finally {
       setRegeneratingFieldId(null);
     }
-  }, [dossierId, templateId, instructionText, doctorName, onFieldRegenerated]);
+  }, [dossierId, templateId, instructionText, doctorName, doctorProfile, onFieldRegenerated]);
 
   return (
     <div className="rounded-lg border border-zinc-200">
@@ -309,12 +311,14 @@ function DocumentDetailView({
   canton,
   dossierId,
   doctorName,
+  doctorProfile,
   onBack,
 }: {
   item: CartItem;
   canton: string;
   dossierId: string | null;
   doctorName?: string;
+  doctorProfile?: DoctorProfile;
   onBack: () => void;
 }) {
   const previewRef = useRef<HTMLDivElement>(null);
@@ -517,6 +521,7 @@ function DocumentDetailView({
                     dossierId={dossierId}
                     templateId={item.template.id}
                     doctorName={doctorName}
+                    doctorProfile={doctorProfile}
                     onFieldRegenerated={(fieldId, value) => setEditedValues((prev) => ({ ...prev, [fieldId]: value }))}
                   />
                 ))}
@@ -664,6 +669,15 @@ interface StepGenerateProps {
 export function StepGenerate({ selectedTemplates, canton, dossierId }: StepGenerateProps) {
   const { user } = useUser();
   const doctorName = user ? `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim() || undefined : undefined;
+  const meta = user?.unsafeMetadata ?? {};
+  const doctorProfile: DoctorProfile | undefined = user ? {
+    name: doctorName ?? null,
+    specialty: (meta.specialty as string) || null,
+    cabinet_name: (meta.cabinet_name as string) || null,
+    cabinet_address: (meta.cabinet_address as string) || null,
+    cabinet_npa: (meta.cabinet_npa as string) || null,
+    cabinet_city: (meta.cabinet_city as string) || null,
+  } : undefined;
 
   const [cart, setCart] = useState<CartItem[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -691,7 +705,7 @@ export function StepGenerate({ selectedTemplates, canton, dossierId }: StepGener
     if (canGenerate && dossierId) {
       try {
         const templateCanton = item.template.canton === "all" ? canton : item.template.canton;
-        const result = await api.generateReport(dossierId, templateCanton, item.template.id, doctorName);
+        const result = await api.generateReport(dossierId, templateCanton, item.template.id, doctorName, doctorProfile);
 
         updateItem(item.template.id, { status: "formatting", progress: 80 });
         const { isPdf, mimeType } = getFileMeta(item.template.filename);
@@ -714,7 +728,7 @@ export function StepGenerate({ selectedTemplates, canton, dossierId }: StepGener
       await new Promise((r) => setTimeout(r, 1200 + Math.random() * 500));
       updateItem(item.template.id, { status: "done", progress: 100 });
     }
-  }, [dossierId, canton, doctorName, updateItem]);
+  }, [dossierId, canton, doctorName, doctorProfile, updateItem]);
 
   const retryItem = useCallback((templateId: string) => {
     setAllDone(false);
@@ -770,6 +784,7 @@ export function StepGenerate({ selectedTemplates, canton, dossierId }: StepGener
         canton={viewingItem.template.canton === "all" ? canton : viewingItem.template.canton}
         dossierId={dossierId}
         doctorName={doctorName}
+        doctorProfile={doctorProfile}
         onBack={() => setViewingTemplateId(null)}
       />
     );

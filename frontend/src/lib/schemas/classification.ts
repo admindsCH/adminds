@@ -7,6 +7,7 @@
 
 /** Document type — 9 categories matching backend CategoryType. */
 export type CategoryType =
+  | "manuscrit"
   | "consultation_note"
   | "rapport_anterieur"
   | "hospitalisation"
@@ -53,12 +54,14 @@ export interface DocumentClassification {
 export interface ClassifiedDocument {
   filename: string;
   classification: DocumentClassification;
+  extracted_text: string | null;
 }
 
 // --- Display constants ---
 
 /** Human-readable labels for each category (French). */
 export const CATEGORY_LABELS: Record<CategoryType, string> = {
+  manuscrit: "Manuscrit",
   consultation_note: "Consultation",
   rapport_anterieur: "Rapport antérieur",
   hospitalisation: "Hospitalisation",
@@ -75,6 +78,7 @@ export const CATEGORY_COLORS: Record<CategoryType,
   "red" | "orange" | "amber" | "yellow" | "lime" | "green" | "emerald"
   | "teal" | "cyan" | "sky" | "blue" | "indigo" | "violet" | "purple"
   | "fuchsia" | "pink" | "rose" | "zinc"> = {
+  manuscrit: "orange",
   consultation_note: "blue",
   rapport_anterieur: "purple",
   hospitalisation: "red",

@@ -14,6 +14,7 @@ from app.classification import store
 from app.classification.schemas import PatientDossier
 from app.report.constants import build_system_prompt
 from app.report.schemas import (
+    DoctorProfile,
     GenerateReportResponse,
     RegenerateFieldResponse,
     UpdateReportResponse,
@@ -25,11 +26,30 @@ from app.templates.pdf_filler import fill_pdf_template
 from app.templates.services import get_schema
 
 
-def _build_patient_context(dossier: PatientDossier, doctor_name: str | None = None) -> str:
+def _build_patient_context(
+    dossier: PatientDossier,
+    doctor_name: str | None = None,
+    doctor_profile: DoctorProfile | None = None,
+) -> str:
     """Serialize the dossier data into a readable text block for the LLM."""
     parts: list[str] = []
 
-    if doctor_name:
+    # Doctor info block
+    if doctor_profile and doctor_profile.name:
+        lines = [f"MÉDECIN RÉDACTEUR (signataire du rapport): {doctor_profile.name}"]
+        if doctor_profile.specialty:
+            lines.append(f"  Spécialité: {doctor_profile.specialty}")
+        if doctor_profile.cabinet_name:
+            lines.append(f"  Cabinet: {doctor_profile.cabinet_name}")
+        addr_parts = []
+        if doctor_profile.cabinet_address:
+            addr_parts.append(doctor_profile.cabinet_address)
+        if doctor_profile.cabinet_npa or doctor_profile.cabinet_city:
+            addr_parts.append(f"{doctor_profile.cabinet_npa or ''} {doctor_profile.cabinet_city or ''}".strip())
+        if addr_parts:
+            lines.append(f"  Adresse: {', '.join(addr_parts)}")
+        parts.append("\n".join(lines))
+    elif doctor_name:
         parts.append(f"MÉDECIN RÉDACTEUR (signataire du rapport, psychiatre traitant): {doctor_name}")
 
     if dossier.raw_content:
@@ -131,6 +151,7 @@ async def generate_report(
     dossier_id: str,
     template_id: str,
     doctor_name: str | None = None,
+    doctor_profile: DoctorProfile | None = None,
 ) -> GenerateReportResponse:
     """Generate a filled report from a stored dossier."""
     # 1. Fetch dossier
@@ -147,7 +168,7 @@ async def generate_report(
         )
 
     # 3. Build patient context
-    patient_context = _build_patient_context(dossier, doctor_name=doctor_name)
+    patient_context = _build_patient_context(dossier, doctor_name=doctor_name, doctor_profile=doctor_profile)
 
     # 4. Build prompt schema (strip positions)
     prompt_schema = schema.to_prompt_schema()
@@ -244,6 +265,7 @@ async def regenerate_field(
     field_id: str,
     instruction: str | None = None,
     doctor_name: str | None = None,
+    doctor_profile: DoctorProfile | None = None,
 ) -> dict[str, str]:
     """Regenerate a single field using the patient dossier and optional instructions."""
     dossier = store.get_dossier(dossier_id)
@@ -280,7 +302,7 @@ async def regenerate_field(
     if field.options:
         entry["options"] = field.options
 
-    patient_context = _build_patient_context(dossier, doctor_name=doctor_name)
+    patient_context = _build_patient_context(dossier, doctor_name=doctor_name, doctor_profile=doctor_profile)
 
     result = await _generate_section(
         section_name=field.section,

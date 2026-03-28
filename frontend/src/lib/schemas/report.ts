@@ -1,3 +1,13 @@
+/** Professional profile of the report-signing doctor. */
+export interface DoctorProfile {
+  name: string | null;
+  specialty: string | null;
+  cabinet_name: string | null;
+  cabinet_address: string | null;
+  cabinet_npa: string | null;
+  cabinet_city: string | null;
+}
+
 /** One field descriptor from the backend canton field map. */
 export interface FieldSchemaEntry {
   id: string;

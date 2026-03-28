@@ -4,6 +4,7 @@ from pydantic import BaseModel, Field
 from app.rubriques.models import Rubriques
 
 CategoryType = Literal[
+    "manuscrit",
     "consultation_note",
     "rapport_anterieur",
     "hospitalisation",
@@ -61,6 +62,10 @@ class ClassifiedDocument(BaseModel):
 
     filename: str
     classification: DocumentClassification
+    extracted_text: str | None = Field(
+        None,
+        description="Vision-extracted text for manuscrit documents, used downstream by dossier extraction",
+    )
 
 
 class PatientInfo(BaseModel):

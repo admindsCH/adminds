@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, File, UploadFile
+from fastapi.responses import Response
 
 from app.templates import services
 from app.templates.schemas import (
@@ -37,6 +38,12 @@ async def rename_template(template_id: str, request: RenameTemplateRequest) -> N
 async def delete_template(template_id: str) -> None:
     """Delete a template and its schema."""
     services.delete_template(template_id)
+
+
+@router.get("/{template_id:path}/download")
+async def download_template(template_id: str):
+    """Download the raw template file (PDF or DOCX)."""
+    return services.download_template(template_id)
 
 
 @router.post("/{template_id:path}/extract-schema", response_model=ExtractSchemaResponse)

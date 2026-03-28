@@ -35,6 +35,8 @@ const STEP_DESCRIPTIONS = [
 export default function RapportPage() {
   const { user } = useUser();
 
+  const doctorName = user ? `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim() || undefined : undefined;
+
   // Cross-step state
   const [step, setStep] = useState(0);
   const [canton, setCanton] = useState<string>(
@@ -124,6 +126,7 @@ export default function RapportPage() {
             dateTo={dateTo}
             onDateFromChange={setDateFrom}
             onDateToChange={setDateTo}
+            doctorName={doctorName}
           />
         )}
         {step === 2 && (

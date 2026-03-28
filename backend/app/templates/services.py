@@ -11,6 +11,7 @@ import re
 import unicodedata
 
 from fastapi import HTTPException
+from fastapi.responses import Response
 from loguru import logger
 
 from app.services import blob_storage
@@ -203,6 +204,18 @@ async def upload_and_extract(
         filename=stored_filename,
         size=len(file_bytes),
     )
+
+
+def download_template(template_id: str) -> Response:
+    """Download a template file as an HTTP response."""
+    file_bytes = blob_storage.download_template(template_id)
+    meta = blob_storage.get_template_metadata(template_id)
+    fmt = meta.get("template_format", "docx")
+    content_type = (
+        "application/pdf" if fmt == "pdf"
+        else "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    )
+    return Response(content=file_bytes, media_type=content_type)
 
 
 def _extract_pdf_text_for_classification(pdf_bytes: bytes) -> bytes:

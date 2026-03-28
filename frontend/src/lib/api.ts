@@ -1,5 +1,5 @@
 import type { ClassifiedDocument, DossierResponse, PatientDossierPatch } from "@/lib/schemas/classification";
-import type { GenerateReportResponse, UpdateReportResponse } from "@/lib/schemas/report";
+import type { DoctorProfile, GenerateReportResponse, UpdateReportResponse } from "@/lib/schemas/report";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -178,9 +178,10 @@ export const api = {
   hello: () => apiGet<{ message: string }>("/api/hello"),
 
   /** Upload files and classify them via GPT-4o vision (Step 1 badges). */
-  classifyDocuments: (files: File[]): Promise<ClassifiedDocument[]> => {
+  classifyDocuments: (files: File[], doctorName?: string): Promise<ClassifiedDocument[]> => {
     const formData = new FormData();
     files.forEach((f) => formData.append("files", f));
+    if (doctorName) formData.append("doctor_name", doctorName);
     return apiPostFormData<ClassifiedDocument[]>("/api/classify", formData);
   },
 
@@ -244,12 +245,13 @@ export const api = {
     apiPatch<DossierResponse>(`/api/dossiers/${dossierId}`, patch),
 
   /** Generate a filled .docx report. Returns field values, schema, and base64 docx. */
-  generateReport: (dossierId: string, canton: string, templateId?: string, doctorName?: string): Promise<GenerateReportResponse> =>
+  generateReport: (dossierId: string, canton: string, templateId?: string, doctorName?: string, doctorProfile?: DoctorProfile): Promise<GenerateReportResponse> =>
     apiPost<GenerateReportResponse>("/api/generate-report", {
       dossier_id: dossierId,
       canton,
       template_id: templateId ?? null,
       doctor_name: doctorName ?? null,
+      doctor_profile: doctorProfile ?? null,
     }),
 
   /** Re-fill the docx template with user-edited field values. Returns updated base64 docx. */
@@ -286,6 +288,13 @@ export const api = {
   deleteTemplate: (templateId: string): Promise<void> =>
     apiDelete(`/api/templates/${templateId}`),
 
+  /** Download a template file as a Blob (for preview). */
+  downloadTemplate: async (templateId: string): Promise<Blob> => {
+    const response = await fetch(`${API_URL}/api/templates/${templateId}/download`);
+    if (!response.ok) throw new Error(`Download failed: ${response.status}`);
+    return response.blob();
+  },
+
   /** Re-run schema extraction on a template. */
   extractSchema: (templateId: string): Promise<{ template_id: string; field_count: number; sections: string[] }> =>
     apiPost(`/api/templates/${templateId}/extract-schema`),
@@ -306,12 +315,13 @@ export const api = {
   },
 
   /** Regenerate a single field with optional doctor instructions. */
-  regenerateField: (dossierId: string, templateId: string, fieldId: string, instruction?: string, doctorName?: string): Promise<RegenerateFieldResponse> =>
+  regenerateField: (dossierId: string, templateId: string, fieldId: string, instruction?: string, doctorName?: string, doctorProfile?: DoctorProfile): Promise<RegenerateFieldResponse> =>
     apiPost<RegenerateFieldResponse>("/api/regenerate-field", {
       dossier_id: dossierId,
       template_id: templateId,
       field_id: fieldId,
       instruction: instruction || null,
       doctor_name: doctorName ?? null,
+      doctor_profile: doctorProfile ?? null,
     }),
 };

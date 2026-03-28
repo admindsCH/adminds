@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, File, UploadFile
+from fastapi import APIRouter, File, Form, UploadFile
 
 from app.classification import services
 from app.classification.schemas import (
@@ -16,9 +16,12 @@ router = APIRouter(tags=["classification"])
 
 
 @router.post("/classify", response_model=list[ClassifiedDocument])
-async def classify(files: list[UploadFile] = File(...)) -> list[ClassifiedDocument]:
+async def classify(
+    files: list[UploadFile] = File(...),
+    doctor_name: str | None = Form(None),
+) -> list[ClassifiedDocument]:
     """Classify uploaded files — fast per-file labeling for Step 1 UI badges."""
-    return await services.classify_documents(files)
+    return await services.classify_documents(files, doctor_name=doctor_name)
 
 
 @router.post("/classify-one", response_model=ClassifiedDocument)

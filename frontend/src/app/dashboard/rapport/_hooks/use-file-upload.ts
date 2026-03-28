@@ -14,7 +14,8 @@ import { api } from "@/lib/api";
  * @param setDocs - state setter for the document list this hook manages
  */
 export function useFileUpload(
-  setDocs: React.Dispatch<React.SetStateAction<WizardDocument[]>>
+  setDocs: React.Dispatch<React.SetStateAction<WizardDocument[]>>,
+  doctorName?: string,
 ) {
   // Whether the user is currently dragging a file over the drop zone
   const [dragging, setDragging] = useState(false);
@@ -26,7 +27,7 @@ export function useFileUpload(
     async (files: File[], docIds: string[]) => {
       try {
         // POST /api/classify — sends all files as multipart/form-data
-        const results = await api.classifyDocuments(files);
+        const results = await api.classifyDocuments(files, doctorName);
 
         // Map results back to docs by index (backend returns same order as uploaded)
         setDocs((prev) =>
@@ -52,7 +53,7 @@ export function useFileUpload(
         );
       }
     },
-    [setDocs]
+    [setDocs, doctorName]
   );
 
   // Convert a FileList into WizardDocuments and start classification

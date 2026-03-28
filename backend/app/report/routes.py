@@ -18,7 +18,9 @@ router = APIRouter(tags=["report"])
 @router.post("/generate-report", response_model=GenerateReportResponse)
 async def generate_report(request: GenerateReportRequest) -> GenerateReportResponse:
     """Generate a filled report from a stored dossier."""
-    return await services.generate_report(request.dossier_id, request.template_id, request.doctor_name)
+    return await services.generate_report(
+        request.dossier_id, request.template_id, request.doctor_name, request.doctor_profile
+    )
 
 
 @router.post("/update-report", response_model=UpdateReportResponse)
@@ -33,5 +35,6 @@ async def update_report(request: UpdateReportRequest) -> UpdateReportResponse:
 async def regenerate_field(request: RegenerateFieldRequest) -> RegenerateFieldResponse:
     """Regenerate a single field with optional doctor instructions."""
     return await services.regenerate_field(
-        request.dossier_id, request.template_id, request.field_id, request.instruction, request.doctor_name
+        request.dossier_id, request.template_id, request.field_id,
+        request.instruction, request.doctor_name, request.doctor_profile,
     )

@@ -3,10 +3,22 @@ from typing import Any
 from pydantic import BaseModel
 
 
+class DoctorProfile(BaseModel):
+    """Professional profile of the report-signing doctor."""
+
+    name: str | None = None
+    specialty: str | None = None
+    cabinet_name: str | None = None
+    cabinet_address: str | None = None
+    cabinet_npa: str | None = None
+    cabinet_city: str | None = None
+
+
 class GenerateReportRequest(BaseModel):
     dossier_id: str
     template_id: str
     doctor_name: str | None = None
+    doctor_profile: DoctorProfile | None = None
 
 
 class FieldSchemaEntry(BaseModel):
@@ -59,6 +71,7 @@ class RegenerateFieldRequest(BaseModel):
     field_id: str
     instruction: str | None = None
     doctor_name: str | None = None
+    doctor_profile: DoctorProfile | None = None
 
 
 class RegenerateFieldResponse(BaseModel):

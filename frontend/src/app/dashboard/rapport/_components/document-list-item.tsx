@@ -51,20 +51,11 @@ export function DocumentListItem({
         </svg>
       </div>
 
-      {/* Name + size + interne/externe badge */}
+      {/* Name + size */}
       <div className="min-w-0 flex-1 sm:flex-initial sm:shrink-0">
-        <div className="flex items-center gap-1.5">
-          <p className="truncate text-sm font-medium text-zinc-900">
-            {doc.fileName}
-          </p>
-          {doc.status === "done" && doc.classification && (
-            doc.classification.author_type === "psychiatre_traitant" ? (
-              <Badge color="green" className="text-[10px]">Interne</Badge>
-            ) : (
-              <Badge color="zinc" className="text-[10px]">Externe</Badge>
-            )
-          )}
-        </div>
+        <p className="truncate text-sm font-medium text-zinc-900">
+          {doc.fileName}
+        </p>
         <p className="text-xs text-zinc-500">
           {formatBytes(doc.fileSize)}
         </p>
