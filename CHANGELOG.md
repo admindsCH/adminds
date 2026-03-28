@@ -1,3 +1,10 @@
+# [0.3.0](https://github.com/admindsCH/adminds/compare/v0.2.2...v0.3.0) (2026-03-28)
+
+
+### Features
+
+* preview documents ([10c93ac](https://github.com/admindsCH/adminds/commit/10c93ac84183b55c751985ff6b0069aae68e61f2))
+
 ## [0.2.2](https://github.com/admindsCH/adminds/compare/v0.2.1...v0.2.2) (2026-03-27)
 
 
