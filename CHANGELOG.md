@@ -1,3 +1,10 @@
+## [0.3.1](https://github.com/admindsCH/adminds/compare/v0.3.0...v0.3.1) (2026-03-29)
+
+
+### Bug Fixes
+
+* disable stepper when no dossier patient ([9ca8b8e](https://github.com/admindsCH/adminds/commit/9ca8b8e881522224b27123a093ddb39d5a1d8eb6))
+
 # [0.3.0](https://github.com/admindsCH/adminds/compare/v0.2.2...v0.3.0) (2026-03-28)
 
 
