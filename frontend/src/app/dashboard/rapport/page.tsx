@@ -87,7 +87,7 @@ export default function RapportPage() {
     switch (step) {
       case 0: return selectedTemplates.length > 0;       // must select at least one report
       case 1: return docs.some((d) => d.status === "done"); // must have at least one classified doc
-      case 2: return true;                                 // résumé is always ready
+      case 2: return !!dossierId && !!dossier;              // must have a parsed dossier
       default: return false;
     }
   })();
@@ -97,7 +97,18 @@ export default function RapportPage() {
       {/* Top bar: logo + stepper */}
       <WizardStepper
         step={step}
-        onStepChange={setStep}
+        onStepChange={(target) => {
+          // Only allow going backward or to the current step freely.
+          // Going forward requires passing the canNext guard for every step in between.
+          if (target <= step) {
+            setStep(target);
+            return;
+          }
+          // Block forward jumps beyond the next allowed step
+          if (canNext && target === step + 1) {
+            setStep(target);
+          }
+        }}
       />
 
       {/* Page title */}
