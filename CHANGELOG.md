@@ -1,3 +1,10 @@
+## [0.5.2](https://github.com/admindsCH/adminds/compare/v0.5.1...v0.5.2) (2026-03-30)
+
+
+### Bug Fixes
+
+* responsiveness on mobile@ ([ce7633e](https://github.com/admindsCH/adminds/commit/ce7633e8bbbaf72e901145afef51200e9d0ad99d))
+
 ## [0.5.1](https://github.com/admindsCH/adminds/compare/v0.5.0...v0.5.1) (2026-03-30)
 
 
