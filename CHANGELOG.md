@@ -1,3 +1,10 @@
+# [0.4.0](https://github.com/admindsCH/adminds/compare/v0.3.1...v0.4.0) (2026-03-30)
+
+
+### Features
+
+* add template per users, webhook and clerk dependencies ([5ba56e7](https://github.com/admindsCH/adminds/commit/5ba56e7f186f584b315cc95cb8beb22827308ae0))
+
 ## [0.3.1](https://github.com/admindsCH/adminds/compare/v0.3.0...v0.3.1) (2026-03-29)
 
 
