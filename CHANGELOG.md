@@ -1,3 +1,10 @@
+## [0.4.1](https://github.com/admindsCH/adminds/compare/v0.4.0...v0.4.1) (2026-03-30)
+
+
+### Bug Fixes
+
+* auth token being passed to frontend ([601d3ab](https://github.com/admindsCH/adminds/commit/601d3ab7b0afcf7a7ff1acf15692f4f744f58ca4))
+
 # [0.4.0](https://github.com/admindsCH/adminds/compare/v0.3.1...v0.4.0) (2026-03-30)
 
 
