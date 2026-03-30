@@ -45,7 +45,7 @@ const WITH_STEPS = [
   {
     label: "Relire et valider",
     detail: "Vérifier le rapport, ajuster si nécessaire",
-    time: "15 min",
+    time: "5–7 min",
   },
 ];
 
@@ -63,8 +63,8 @@ export default function TimeComparison() {
         className="text-center mb-12 max-w-2xl mx-auto"
       >
         <p className="text-lg sm:text-xl text-zinc-600 leading-relaxed" style={{ fontFamily: "var(--font-serif)" }}>
-          &laquo; Je n&apos;ai pas fait médecine pour remplir des
-          formulaires. &raquo;
+          &laquo;&nbsp;Le rapport ou le patient — il faut choisir,
+          et ce n&apos;est jamais le rapport qui gagne.&nbsp;&raquo;
         </p>
         <p className="mt-3 text-sm text-zinc-400">
           Chaque heure passée sur l&apos;administratif est une heure en moins
@@ -132,7 +132,7 @@ export default function TimeComparison() {
             </div>
             <div>
               <div className="text-sm font-semibold text-zinc-900">Avec Adminds</div>
-              <div className="text-xs text-indigo-600 font-medium">~20 minutes par rapport</div>
+              <div className="text-xs text-indigo-600 font-medium">~10 minutes par rapport</div>
             </div>
           </div>
           <p className="text-xs text-zinc-400 mb-6">
@@ -174,7 +174,7 @@ export default function TimeComparison() {
             </div>
             <div>
               <div className="text-xl font-bold text-indigo-600" style={{ fontFamily: "var(--font-serif)" }}>
-                ~2h retrouvées par rapport
+                ~2h30 retrouvées par rapport
               </div>
               <div className="text-[11px] text-zinc-400 mt-0.5">
                 Pour vos patients, pas pour l&apos;administratif

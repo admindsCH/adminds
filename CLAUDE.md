@@ -2,7 +2,7 @@
 
 ## Product
 
-**Adminds** helps psychiatrists in Switzerland write disability insurance reports ("rapports AI") faster using AI.
+**Adminds** helps psychiatrists in Switzerland write reports faster using AI.
 
 ---
 
@@ -46,7 +46,6 @@
 - One task per subagent for focused execution.
 
 ### 7. Self-Improvement Loop
-- After ANY correction from the user: update [memory/lessons.md](memory/lessons.md).
 - Write rules that prevent the same mistake. Review lessons at session start.
 
 ### 8. Autonomous Bug Fixing

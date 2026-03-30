@@ -80,15 +80,15 @@ export default function AdminBurden() {
         className="text-center mb-12 max-w-2xl mx-auto"
       >
         <p
-          className="text-lg sm:text-xl text-zinc-600 leading-relaxed"
+          className="text-xl sm:text-2xl text-zinc-600 leading-relaxed"
           style={{ fontFamily: "var(--font-serif)" }}
         >
-          &laquo;&nbsp;Je n&apos;ai pas fait médecine pour remplir des
-          formulaires.&nbsp;&raquo;
+          &laquo;&nbsp;Le patient sort, le suivant attend, et entre les deux
+          je rédige un rapport en espérant ne rien oublier.&nbsp;&raquo;
         </p>
         <p className="mt-3 text-sm text-zinc-400">
           Chaque heure passée sur l&apos;administratif est une heure en moins
-          pour vos patients — et pour vous.
+          pour vos patients — et une raison de plus de rester tard au cabinet.
         </p>
       </motion.div>
 
@@ -150,13 +150,13 @@ export default function AdminBurden() {
         </div>
         <div>
           <div
-            className="text-lg font-bold text-indigo-700"
+            className="text-2xl sm:text-3xl font-bold text-indigo-700"
             style={{ fontFamily: "var(--font-serif)" }}
           >
             Des heures chaque semaine
           </div>
-          <div className="text-xs text-zinc-500 mt-0.5">
-            d&apos;un psychiatre est consacré à des tâches administratives
+          <div className="text-sm text-zinc-500 mt-1">
+            perdues dans l&apos;administratif au lieu d&apos;être avec vos patients
           </div>
         </div>
       </motion.div>

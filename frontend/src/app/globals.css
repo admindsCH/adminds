@@ -53,6 +53,23 @@ html {
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.08);
 }
 
+/* Accordion animations (radix) */
+@keyframes accordion-down {
+  from { height: 0; opacity: 0; }
+  to { height: var(--radix-accordion-content-height); opacity: 1; }
+}
+@keyframes accordion-up {
+  from { height: var(--radix-accordion-content-height); opacity: 1; }
+  to { height: 0; opacity: 0; }
+}
+
+@utility animate-accordion-down {
+  animation: accordion-down 0.2s ease-out;
+}
+@utility animate-accordion-up {
+  animation: accordion-up 0.2s ease-out;
+}
+
 /* Typing cursor blink */
 @keyframes blink {
   0%, 100% { opacity: 1; }

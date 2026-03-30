@@ -64,7 +64,9 @@ async def clerk_webhook(
     if settings.clerk_webhook_secret:
         if not svix_id or not svix_timestamp or not svix_signature:
             raise HTTPException(status_code=400, detail="Missing Svix headers")
-        if not _verify_clerk_signature(payload, svix_id, svix_timestamp, svix_signature):
+        if not _verify_clerk_signature(
+            payload, svix_id, svix_timestamp, svix_signature
+        ):
             raise HTTPException(status_code=401, detail="Invalid signature")
 
     event = await request.json()
