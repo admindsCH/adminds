@@ -1,3 +1,10 @@
+# [0.5.0](https://github.com/admindsCH/adminds/compare/v0.4.1...v0.5.0) (2026-03-30)
+
+
+### Features
+
+* new website ([0beab02](https://github.com/admindsCH/adminds/commit/0beab020f0467a9d184b8b6bce3c7688fd08a652))
+
 ## [0.4.1](https://github.com/admindsCH/adminds/compare/v0.4.0...v0.4.1) (2026-03-30)
 
 
