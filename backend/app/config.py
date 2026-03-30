@@ -19,6 +19,13 @@ class Settings(BaseSettings):
     # Azure Blob Storage
     azure_storage_connection_string: str = ""
 
+    # Clerk authentication
+    clerk_domain: str = ""
+    clerk_webhook_secret: str = ""
+
+    # Slack notifications
+    slack_webhook_url: str = ""
+
     azure_keyvault_url: str = ""
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}

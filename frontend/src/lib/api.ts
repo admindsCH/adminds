@@ -3,13 +3,34 @@ import type { DoctorProfile, GenerateReportResponse, UpdateReportResponse } from
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
+// ── Clerk token integration ─────────────────────────────
+// Set once from a React component via useAuth().getToken,
+// then used automatically in every API call.
+let _getToken: (() => Promise<string | null>) | null = null;
+
+export function setTokenGetter(fn: () => Promise<string | null>) {
+  _getToken = fn;
+}
+
 async function getAuthHeaders(): Promise<HeadersInit> {
-  // Clerk exposes getToken() via useAuth hook on client side
-  // For server components, use auth() from @clerk/nextjs/server
-  // This will be wired up when Clerk is installed
-  return {
+  const headers: Record<string, string> = {
     "Content-Type": "application/json",
   };
+  if (_getToken) {
+    const token = await _getToken();
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+  }
+  return headers;
+}
+
+/** Return only the Authorization header (no Content-Type — for FormData uploads). */
+async function getAuthOnlyHeaders(): Promise<Record<string, string>> {
+  const headers: Record<string, string> = {};
+  if (_getToken) {
+    const token = await _getToken();
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+  }
+  return headers;
 }
 
 export async function apiGet<T>(path: string): Promise<T> {
@@ -45,8 +66,10 @@ export async function apiPost<T>(path: string, body?: unknown): Promise<T> {
 
 /** POST with FormData body (for file uploads). No Content-Type header — browser sets multipart boundary. */
 export async function apiPostFormData<T>(path: string, formData: FormData): Promise<T> {
+  const headers = await getAuthOnlyHeaders();
   const response = await fetch(`${API_URL}${path}`, {
     method: "POST",
+    headers,
     body: formData,
   });
 
@@ -193,8 +216,10 @@ export const api = {
     const formData = new FormData();
     files.forEach((f) => formData.append("files", f));
 
+    const authHeaders = await getAuthOnlyHeaders();
     const response = await fetch(`${API_URL}/api/parse-dossier-stream`, {
       method: "POST",
+      headers: authHeaders,
       body: formData,
     });
     if (!response.ok || !response.body) {
@@ -290,7 +315,8 @@ export const api = {
 
   /** Download a template file as a Blob (for preview). */
   downloadTemplate: async (templateId: string): Promise<Blob> => {
-    const response = await fetch(`${API_URL}/api/templates/${templateId}/download`);
+    const headers = await getAuthOnlyHeaders();
+    const response = await fetch(`${API_URL}/api/templates/${templateId}/download`, { headers });
     if (!response.ok) throw new Error(`Download failed: ${response.status}`);
     return response.blob();
   },

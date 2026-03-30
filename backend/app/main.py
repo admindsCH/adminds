@@ -10,6 +10,7 @@ from app.classification.routes import router as classification_router
 from app.config import load_secrets_from_keyvault, settings
 from app.report.routes import router as report_router
 from app.templates.routes import router as templates_router
+from app.webhooks.routes import router as webhooks_router
 from app.schemas import HealthResponse
 
 
@@ -88,3 +89,4 @@ async def health() -> HealthResponse:
 app.include_router(classification_router, prefix="/api")
 app.include_router(report_router, prefix="/api")
 app.include_router(templates_router, prefix="/api")
+app.include_router(webhooks_router, prefix="/api")

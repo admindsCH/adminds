@@ -148,6 +148,7 @@ async def _generate_section(
 
 
 async def generate_report(
+    user_id: str,
     dossier_id: str,
     template_id: str,
     doctor_name: str | None = None,
@@ -160,7 +161,7 @@ async def generate_report(
         raise HTTPException(status_code=404, detail="Dossier introuvable")
 
     # 2. Load schema
-    schema = get_schema(template_id)
+    schema = get_schema(user_id, template_id)
     if schema is None:
         raise HTTPException(
             status_code=400,
@@ -217,7 +218,7 @@ async def generate_report(
     store.save_debug(dossier_id, f"gen_{safe_template_id}_merged_field_values.json", field_values)
 
     # 6. Fill template
-    template_bytes = blob_storage.download_template(template_id)
+    template_bytes = blob_storage.download_template(user_id, template_id)
     filled_bytes = _fill(schema, template_bytes, field_values)
 
     # 7. Persist
@@ -233,6 +234,7 @@ async def generate_report(
 
 
 async def update_report(
+    user_id: str,
     dossier_id: str,
     field_values: dict[str, Any],
     template_id: str,
@@ -243,11 +245,11 @@ async def update_report(
 
     field_values = {k: v for k, v in field_values.items() if v is not None}
 
-    schema = get_schema(template_id)
+    schema = get_schema(user_id, template_id)
     if schema is None:
         raise HTTPException(status_code=400, detail="Schema non trouvé")
 
-    template_bytes = blob_storage.download_template(template_id)
+    template_bytes = blob_storage.download_template(user_id, template_id)
     filled_bytes = _fill(schema, template_bytes, field_values)
 
     store.save_field_values(dossier_id, field_values)
@@ -260,6 +262,7 @@ async def update_report(
 
 
 async def regenerate_field(
+    user_id: str,
     dossier_id: str,
     template_id: str,
     field_id: str,
@@ -272,7 +275,7 @@ async def regenerate_field(
     if dossier is None:
         raise HTTPException(status_code=404, detail="Dossier introuvable")
 
-    schema = get_schema(template_id)
+    schema = get_schema(user_id, template_id)
     if schema is None:
         raise HTTPException(status_code=400, detail="Schema non trouvé")
 

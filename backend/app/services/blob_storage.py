@@ -64,6 +64,11 @@ def _desanitize_metadata(metadata: dict[str, str]) -> dict[str, str]:
     }
 
 
+def _blob_key(user_id: str, template_id: str) -> str:
+    """Build the blob name: ``{user_id}/{template_id}``."""
+    return f"{user_id}/{template_id}"
+
+
 def _safe_int(value: str | None, default: int) -> int:
     """Parse an int from metadata, returning default on any failure."""
     try:
@@ -73,6 +78,7 @@ def _safe_int(value: str | None, default: int) -> int:
 
 
 def upload_template(
+    user_id: str,
     template_id: str,
     file_bytes: bytes,
     filename: str,
@@ -82,7 +88,8 @@ def upload_template(
     """Upload a template file to blob storage with metadata.
 
     Args:
-        template_id: Unique ID for this template (used as blob name).
+        user_id: Owner's Clerk user ID (scopes the blob key).
+        template_id: Unique ID for this template (category/slug).
         file_bytes: Raw file content (.docx or .pdf).
         filename: Original filename (stored in metadata).
         metadata: Template metadata — name, description, category,
@@ -99,7 +106,7 @@ def upload_template(
     }.get(ext, "application/octet-stream")
 
     container = _get_container(TEMPLATES_CONTAINER)
-    blob = container.get_blob_client(template_id)
+    blob = container.get_blob_client(_blob_key(user_id, template_id))
 
     # Merge filename into metadata and sanitize for Azure
     # Azure blob metadata values must be ASCII-safe
@@ -118,55 +125,59 @@ def upload_template(
     return blob.url
 
 
-def template_exists(template_id: str) -> bool:
+def template_exists(user_id: str, template_id: str) -> bool:
     """Check if a template blob already exists."""
     container = _get_container(TEMPLATES_CONTAINER)
-    blob = container.get_blob_client(template_id)
+    blob = container.get_blob_client(_blob_key(user_id, template_id))
     return blob.exists()
 
 
-def download_template(template_id: str) -> bytes:
+def download_template(user_id: str, template_id: str) -> bytes:
     """Download a template file from blob storage."""
     container = _get_container(TEMPLATES_CONTAINER)
-    blob = container.get_blob_client(template_id)
+    blob = container.get_blob_client(_blob_key(user_id, template_id))
     return blob.download_blob().readall()
 
 
-def delete_template(template_id: str) -> None:
+def delete_template(user_id: str, template_id: str) -> None:
     """Delete a template and its associated schema."""
     templates = _get_container(TEMPLATES_CONTAINER)
     schemas = _get_container(SCHEMAS_CONTAINER)
+    key = _blob_key(user_id, template_id)
 
-    templates.get_blob_client(template_id).delete_blob()
-    logger.info(f"Deleted template '{template_id}'")
+    templates.get_blob_client(key).delete_blob()
+    logger.info(f"Deleted template '{key}'")
 
     # Also delete the schema if it exists
-    schema_blob = schemas.get_blob_client(template_id)
+    schema_blob = schemas.get_blob_client(key)
     if schema_blob.exists():
         schema_blob.delete_blob()
-        logger.info(f"Deleted schema for '{template_id}'")
+        logger.info(f"Deleted schema for '{key}'")
 
 
-def list_templates() -> list[TemplateResponse]:
-    """List all templates with their metadata."""
+def list_templates(user_id: str) -> list[TemplateResponse]:
+    """List templates owned by *user_id*."""
     container = _get_container(TEMPLATES_CONTAINER)
     schemas_container = _get_container(SCHEMAS_CONTAINER)
+    prefix = f"{user_id}/"
 
     # Collect existing schema IDs for the has_schema flag
     schema_ids = set()
-    for blob in schemas_container.list_blobs():
+    for blob in schemas_container.list_blobs(name_starts_with=prefix):
         schema_ids.add(blob.name)
 
     templates: list[TemplateResponse] = []
-    for blob in container.list_blobs(include=["metadata"]):
+    for blob in container.list_blobs(name_starts_with=prefix, include=["metadata"]):
+        # Strip user prefix to get the external template_id
+        external_id = blob.name[len(prefix):]
         meta = _desanitize_metadata(blob.metadata or {})
         created_at = ""
         if blob.last_modified:
             created_at = blob.last_modified.isoformat()
         templates.append(
             TemplateResponse(
-                id=blob.name,
-                name=meta.get("name", blob.name),
+                id=external_id,
+                name=meta.get("name", external_id),
                 description=meta.get("description", ""),
                 category=meta.get("category", "rapport-ai"),
                 insurance_id=meta.get("insurance_id", ""),
@@ -185,34 +196,35 @@ def list_templates() -> list[TemplateResponse]:
     return templates
 
 
-def get_template_metadata(template_id: str) -> dict[str, str]:
+def get_template_metadata(user_id: str, template_id: str) -> dict[str, str]:
     """Get metadata for a single template."""
     container = _get_container(TEMPLATES_CONTAINER)
-    blob = container.get_blob_client(template_id)
+    blob = container.get_blob_client(_blob_key(user_id, template_id))
     props = blob.get_blob_properties()
     return _desanitize_metadata(props.metadata or {})
 
 
-def update_template_metadata(template_id: str, metadata: dict[str, str]) -> None:
+def update_template_metadata(user_id: str, template_id: str, metadata: dict[str, str]) -> None:
     """Update metadata on an existing template blob."""
     container = _get_container(TEMPLATES_CONTAINER)
-    blob = container.get_blob_client(template_id)
+    blob = container.get_blob_client(_blob_key(user_id, template_id))
     blob.set_blob_metadata(_sanitize_metadata(metadata))
     logger.info(f"Updated metadata for template '{template_id}'")
 
 
-def upload_schema(template_id: str, schema: dict[str, Any]) -> str:
+def upload_schema(user_id: str, template_id: str, schema: dict[str, Any]) -> str:
     """Upload a JSON field-map schema for a template.
 
     Args:
-        template_id: Must match the template blob name.
+        user_id: Owner's Clerk user ID.
+        template_id: Must match the template's external ID (category/slug).
         schema: The extracted field schema dict.
 
     Returns:
         The blob URL.
     """
     container = _get_container(SCHEMAS_CONTAINER)
-    blob = container.get_blob_client(template_id)
+    blob = container.get_blob_client(_blob_key(user_id, template_id))
 
     blob.upload_blob(
         json.dumps(schema, ensure_ascii=False, indent=2).encode("utf-8"),
@@ -224,10 +236,10 @@ def upload_schema(template_id: str, schema: dict[str, Any]) -> str:
     return blob.url
 
 
-def download_schema(template_id: str) -> dict[str, Any] | None:
+def download_schema(user_id: str, template_id: str) -> dict[str, Any] | None:
     """Download the JSON schema for a template, or None if not yet generated."""
     container = _get_container(SCHEMAS_CONTAINER)
-    blob = container.get_blob_client(template_id)
+    blob = container.get_blob_client(_blob_key(user_id, template_id))
 
     if not blob.exists():
         return None
@@ -236,10 +248,10 @@ def download_schema(template_id: str) -> dict[str, Any] | None:
     return json.loads(data)
 
 
-def has_schema(template_id: str) -> bool:
+def has_schema(user_id: str, template_id: str) -> bool:
     """Check if a schema exists for a given template."""
     container = _get_container(SCHEMAS_CONTAINER)
-    return container.get_blob_client(template_id).exists()
+    return container.get_blob_client(_blob_key(user_id, template_id)).exists()
 
 
 def _content_settings(content_type: str):

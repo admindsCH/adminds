@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { UserButton, useUser } from "@clerk/nextjs";
+import { useEffect, useState } from "react";
+import { UserButton, useAuth, useUser } from "@clerk/nextjs";
+import { setTokenGetter } from "@/lib/api";
 
 // ── Doctor Profile Form (rendered inside Clerk modal) ───
 
@@ -144,7 +145,13 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const { user } = useUser();
+  const { getToken } = useAuth();
   const displayName = user ? `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim() : "Mon compte";
+
+  // Wire Clerk token into all API calls
+  useEffect(() => {
+    setTokenGetter(() => getToken());
+  }, [getToken]);
 
   return (
     <div className="flex min-h-screen flex-col bg-zinc-100 p-2">

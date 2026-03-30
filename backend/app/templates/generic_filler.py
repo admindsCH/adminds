@@ -9,6 +9,7 @@ from lxml import etree
 
 from loguru import logger
 
+from app.templates.docx_compat import normalize_docx_bytes
 from app.templates.schemas import SchemaField, TemplateSchema
 
 
@@ -40,7 +41,7 @@ def fill_template(
     Returns:
         Filled .docx as bytes.
     """
-    doc = Document(io.BytesIO(template_bytes))
+    doc = Document(io.BytesIO(normalize_docx_bytes(template_bytes)))
     all_ff = doc.element.findall(f".//{W}ffData")
     tables = doc.element.findall(f".//{W}tbl")
 

@@ -38,37 +38,37 @@ def _slugify(text: str) -> str:
     return text.strip("-")
 
 
-def list_templates() -> list[TemplateResponse]:
-    """List all available templates."""
-    return blob_storage.list_templates()
+def list_templates(user_id: str) -> list[TemplateResponse]:
+    """List templates owned by *user_id*."""
+    return blob_storage.list_templates(user_id)
 
 
-def delete_template(template_id: str) -> None:
+def delete_template(user_id: str, template_id: str) -> None:
     """Delete a template and its schema."""
     try:
-        blob_storage.delete_template(template_id)
+        blob_storage.delete_template(user_id, template_id)
     except Exception as e:
         raise HTTPException(status_code=404, detail=str(e))
 
 
-def rename_template(template_id: str, new_name: str) -> None:
+def rename_template(user_id: str, template_id: str, new_name: str) -> None:
     """Rename a template by updating its blob metadata."""
     try:
-        meta = blob_storage.get_template_metadata(template_id)
+        meta = blob_storage.get_template_metadata(user_id, template_id)
     except Exception:
         raise HTTPException(status_code=404, detail="Template introuvable")
     meta["name"] = new_name
-    blob_storage.update_template_metadata(template_id, meta)
+    blob_storage.update_template_metadata(user_id, template_id, meta)
 
 
-async def extract_schema(template_id: str) -> ExtractSchemaResponse:
+async def extract_schema(user_id: str, template_id: str) -> ExtractSchemaResponse:
     """Run or re-run schema extraction on a template."""
     try:
-        meta = blob_storage.get_template_metadata(template_id)
+        meta = blob_storage.get_template_metadata(user_id, template_id)
     except Exception:
         raise HTTPException(status_code=404, detail="Template introuvable")
     template_name = meta.get("name", template_id)
-    schema = await extract_and_store_schema(template_id, template_name)
+    schema = await extract_and_store_schema(user_id, template_id, template_name)
     return ExtractSchemaResponse(
         template_id=template_id,
         field_count=len(schema.fields),
@@ -76,9 +76,9 @@ async def extract_schema(template_id: str) -> ExtractSchemaResponse:
     )
 
 
-def get_schema_dict(template_id: str) -> dict:
+def get_schema_dict(user_id: str, template_id: str) -> dict:
     """Return a stored schema as a dict, or raise 404."""
-    schema = get_schema(template_id)
+    schema = get_schema(user_id, template_id)
     if schema is None:
         raise HTTPException(
             status_code=404,
@@ -87,9 +87,9 @@ def get_schema_dict(template_id: str) -> dict:
     return schema.model_dump()
 
 
-def update_schema(template_id: str, request: UpdateSchemaRequest) -> dict:
+def update_schema(user_id: str, template_id: str, request: UpdateSchemaRequest) -> dict:
     """Validate and persist an updated schema."""
-    schema = get_schema(template_id)
+    schema = get_schema(user_id, template_id)
     if schema is None:
         raise HTTPException(status_code=404, detail="Schema non trouvé.")
     ids = [f.id for f in request.fields]
@@ -97,11 +97,12 @@ def update_schema(template_id: str, request: UpdateSchemaRequest) -> dict:
     if dupes:
         raise HTTPException(status_code=400, detail=f"IDs dupliqués: {set(dupes)}")
     schema.fields = request.fields
-    blob_storage.upload_schema(template_id, schema.model_dump())
+    blob_storage.upload_schema(user_id, template_id, schema.model_dump())
     return schema.model_dump()
 
 
 async def upload_and_extract(
+    user_id: str,
     file_bytes: bytes,
     filename: str,
 ) -> TemplateResponse:
@@ -113,6 +114,7 @@ async def upload_and_extract(
     4. Extract schema (Pass 1) — XML for DOCX, AcroForm for PDF
 
     Args:
+        user_id: Owner's Clerk user ID.
         file_bytes: Raw uploaded file bytes (.docx or .pdf).
         filename: Original filename.
 
@@ -166,7 +168,7 @@ async def upload_and_extract(
     )
 
     # ── Step 3: Upload to blob storage ───────────────────
-    if blob_storage.template_exists(template_id):
+    if blob_storage.template_exists(user_id, template_id):
         import time
 
         suffix = str(int(time.time()))[-4:]
@@ -175,6 +177,7 @@ async def upload_and_extract(
         logger.info(f"Duplicate detected, using '{template_id}'")
 
     blob_storage.upload_template(
+        user_id=user_id,
         template_id=template_id,
         file_bytes=file_bytes,
         filename=stored_filename,
@@ -182,12 +185,20 @@ async def upload_and_extract(
     )
 
     # ── Step 4: Extract schema ───────────────────────────
-    has_schema = False
     try:
-        await extract_and_store_schema(template_id, metadata["name"], template_format)
-        has_schema = True
+        await extract_and_store_schema(user_id, template_id, metadata["name"], template_format)
     except Exception as e:
         logger.error(f"Schema extraction failed for '{template_id}': {e}")
+        # Roll back: remove the blob so we don't leave a broken template
+        try:
+            blob_storage.delete_template(user_id, template_id)
+            logger.info(f"Rolled back blob upload for '{template_id}'")
+        except Exception:
+            logger.warning(f"Failed to roll back blob for '{template_id}'")
+        raise HTTPException(
+            status_code=422,
+            detail=f"Impossible d'extraire le schéma du fichier '{filename}'. Vérifiez que le fichier est un .docx ou .pdf valide.",
+        )
 
     return TemplateResponse(
         id=template_id,
@@ -200,16 +211,16 @@ async def upload_and_extract(
         estimated_minutes=int(metadata.get("estimated_minutes", "5")),
         page_count=int(metadata.get("page_count", "1")),
         is_official=metadata.get("is_official", "false").lower() == "true",
-        has_schema=has_schema,
+        has_schema=True,
         filename=stored_filename,
         size=len(file_bytes),
     )
 
 
-def download_template(template_id: str) -> Response:
+def download_template(user_id: str, template_id: str) -> Response:
     """Download a template file as an HTTP response."""
-    file_bytes = blob_storage.download_template(template_id)
-    meta = blob_storage.get_template_metadata(template_id)
+    file_bytes = blob_storage.download_template(user_id, template_id)
+    meta = blob_storage.get_template_metadata(user_id, template_id)
     fmt = meta.get("template_format", "docx")
     content_type = (
         "application/pdf" if fmt == "pdf"
@@ -227,6 +238,7 @@ def _extract_pdf_text_for_classification(pdf_bytes: bytes) -> bytes:
 
 
 async def extract_and_store_schema(
+    user_id: str,
     template_id: str,
     template_name: str,
     template_format: str = "docx",
@@ -236,7 +248,7 @@ async def extract_and_store_schema(
         f"Extracting schema for template '{template_id}' ({template_name}, {template_format})"
     )
 
-    file_bytes = blob_storage.download_template(template_id)
+    file_bytes = blob_storage.download_template(user_id, template_id)
     raw_slots = extract_raw_slots(file_bytes)
     logger.info(f"Found {len(raw_slots)} raw slots")
 
@@ -244,7 +256,7 @@ async def extract_and_store_schema(
     schema.template_id = template_id
     schema.template_format = template_format
 
-    blob_storage.upload_schema(template_id, schema.model_dump())
+    blob_storage.upload_schema(user_id, template_id, schema.model_dump())
     logger.info(
         f"Schema stored: {len(schema.fields)} fields, "
         f"{len(set(f.section for f in schema.fields))} sections"
@@ -253,9 +265,9 @@ async def extract_and_store_schema(
     return schema
 
 
-def get_schema(template_id: str) -> TemplateSchema | None:
+def get_schema(user_id: str, template_id: str) -> TemplateSchema | None:
     """Load a stored schema from blob storage."""
-    data = blob_storage.download_schema(template_id)
+    data = blob_storage.download_schema(user_id, template_id)
     if data is None:
         return None
     return TemplateSchema(**data)

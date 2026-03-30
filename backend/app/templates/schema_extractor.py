@@ -16,6 +16,7 @@ import fitz  # PyMuPDF
 from docx import Document
 from lxml import etree
 
+from app.templates.docx_compat import normalize_docx_bytes
 from app.templates.schemas import RawSlot
 
 # ── Word XML namespaces ──────────────────────────────────
@@ -226,7 +227,7 @@ def _extract_section_headings(page: fitz.Page) -> list[tuple[float, str]]:
 
 def _extract_docx_slots(docx_bytes: bytes) -> list[RawSlot]:
     """Extract slots from a .docx file using XML parsing."""
-    doc = Document(io.BytesIO(docx_bytes))
+    doc = Document(io.BytesIO(normalize_docx_bytes(docx_bytes)))
     root = doc.element
 
     slots: list[RawSlot] = []
