@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { UserButton, useAuth, useUser } from "@clerk/nextjs";
 import { setTokenGetter } from "@/lib/api";
 
@@ -148,10 +148,9 @@ export default function DashboardLayout({
   const { getToken } = useAuth();
   const displayName = user ? `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim() : "Mon compte";
 
-  // Wire Clerk token into all API calls
-  useEffect(() => {
-    setTokenGetter(() => getToken());
-  }, [getToken]);
+  // Wire Clerk token into all API calls — set eagerly (not in useEffect)
+  // so it's available before child component effects fire.
+  setTokenGetter(() => getToken());
 
   return (
     <div className="flex min-h-screen flex-col bg-zinc-100 p-2">

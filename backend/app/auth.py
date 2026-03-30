@@ -11,6 +11,7 @@ import time
 import httpx
 import jwt
 from fastapi import Header, HTTPException
+from loguru import logger
 from pydantic import BaseModel
 
 from app.config import settings
@@ -42,15 +43,26 @@ def _get_jwks() -> dict:
     return _jwks_cache
 
 
+def _get_signing_key(token: str, jwks_data: dict) -> jwt.PyJWK:
+    """Match the token's ``kid`` header to the correct JWK."""
+    header = jwt.get_unverified_header(token)
+    kid = header.get("kid")
+    keyset = jwt.PyJWKSet.from_dict(jwks_data)
+    for key in keyset.keys:
+        if key.key_id == kid:
+            return key
+    raise jwt.exceptions.PyJWKError(f"Key with kid '{kid}' not found in JWKS")
+
+
 def _decode_token(token: str) -> dict:
     """Decode and verify a Clerk JWT. Retries with fresh JWKS on failure."""
     jwks = _get_jwks()
-    signing_keys = jwt.PyJWKSet.from_dict(jwks)
 
     try:
+        key = _get_signing_key(token, jwks)
         return jwt.decode(
             token,
-            signing_keys,
+            key,
             algorithms=["RS256"],
             issuer=f"https://{settings.clerk_domain}",
             options={"require": ["sub", "exp", "iss"]},
@@ -60,10 +72,10 @@ def _decode_token(token: str) -> dict:
         global _jwks_cache
         _jwks_cache = None
         jwks = _get_jwks()
-        signing_keys = jwt.PyJWKSet.from_dict(jwks)
+        key = _get_signing_key(token, jwks)
         return jwt.decode(
             token,
-            signing_keys,
+            key,
             algorithms=["RS256"],
             issuer=f"https://{settings.clerk_domain}",
             options={"require": ["sub", "exp", "iss"]},
@@ -74,16 +86,17 @@ def _decode_token(token: str) -> dict:
 
 
 async def get_current_user(
-    authorization: str = Header(..., alias="Authorization"),
+    authorization: str | None = Header(None, alias="Authorization"),
 ) -> CurrentUser:
     """Extract and validate Clerk JWT from Authorization header."""
-    if not authorization.startswith("Bearer "):
+    if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Missing Bearer token")
 
     token = authorization[7:]
     try:
         payload = _decode_token(token)
     except jwt.exceptions.PyJWTError as e:
+        logger.error(f"Auth failed: {e}")
         raise HTTPException(status_code=401, detail=f"Invalid token: {e}")
 
     user_id = payload.get("sub")
