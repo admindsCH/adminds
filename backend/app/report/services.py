@@ -30,6 +30,7 @@ def _build_patient_context(
     dossier: PatientDossier,
     doctor_name: str | None = None,
     doctor_profile: DoctorProfile | None = None,
+    relevant_rubriques: set[str] | None = None,
 ) -> str:
     """Serialize the dossier data into a readable text block for the LLM."""
     parts: list[str] = []
@@ -83,6 +84,8 @@ def _build_patient_context(
         "r08_activites": "R08 ACTIVITÉS",
     }
     for field_name, display_name in rubrique_names.items():
+        if relevant_rubriques is not None and field_name not in relevant_rubriques:
+            continue
         rubrique = getattr(rub, field_name)
         lines = []
         for sub_field, value in rubrique.model_dump().items():
@@ -168,16 +171,16 @@ async def generate_report(
             detail="Schema non trouvé pour ce template. Lancez l'extraction d'abord.",
         )
 
-    # 3. Build patient context
-    patient_context = _build_patient_context(dossier, doctor_name=doctor_name, doctor_profile=doctor_profile)
-
-    # 4. Build prompt schema (strip positions)
+    # 3. Build prompt schema (strip positions)
     prompt_schema = schema.to_prompt_schema()
 
-    # 5. Group fields by section and generate in parallel
+    # 4. Group fields by section and generate in parallel
     section_groups: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for entry in prompt_schema:
         section_groups[entry["section"]].append(entry)
+
+    # Build a lookup: field_id → mapped_rubrique
+    rubrique_by_field = {f.id: f.mapped_rubrique for f in schema.fields if f.mapped_rubrique}
 
     logger.info(
         f"Generating report: template_id={template_id}, "
@@ -188,22 +191,38 @@ async def generate_report(
     # Debug: save generation inputs
     safe_template_id = template_id.replace("/", "_")
     store.save_debug(dossier_id, f"gen_{safe_template_id}_prompt_schema.json", prompt_schema)
-    store.save_debug(dossier_id, f"gen_{safe_template_id}_patient_context.txt", patient_context)
     store.save_debug(dossier_id, f"gen_{safe_template_id}_sections.json", {
         name: fields for name, fields in section_groups.items()
     })
 
-    section_results = await asyncio.gather(
-        *(
+    # 5. Build per-section patient context (only relevant rubriques)
+    section_tasks = []
+    for section_name, section_fields in section_groups.items():
+        relevant_rubriques = {
+            rubrique_by_field[f["id"]]
+            for f in section_fields
+            if f["id"] in rubrique_by_field
+        }
+        section_context = _build_patient_context(
+            dossier,
+            doctor_name=doctor_name,
+            doctor_profile=doctor_profile,
+            relevant_rubriques=relevant_rubriques or None,
+        )
+        logger.info(
+            f"Section '{section_name}': {len(section_fields)} fields, "
+            f"rubriques={relevant_rubriques or 'all'}"
+        )
+        section_tasks.append(
             _generate_section(
                 section_name=section_name,
                 section_fields=section_fields,
                 canton_name=schema.template_name,
-                patient_context=patient_context,
+                patient_context=section_context,
             )
-            for section_name, section_fields in section_groups.items()
         )
-    )
+
+    section_results = await asyncio.gather(*section_tasks)
 
     field_values: dict[str, Any] = {}
     for section_vals in section_results:
@@ -305,7 +324,13 @@ async def regenerate_field(
     if field.options:
         entry["options"] = field.options
 
-    patient_context = _build_patient_context(dossier, doctor_name=doctor_name, doctor_profile=doctor_profile)
+    relevant_rubriques = {field.mapped_rubrique} if field.mapped_rubrique else None
+    patient_context = _build_patient_context(
+        dossier,
+        doctor_name=doctor_name,
+        doctor_profile=doctor_profile,
+        relevant_rubriques=relevant_rubriques,
+    )
 
     result = await _generate_section(
         section_name=field.section,
