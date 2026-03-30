@@ -1,3 +1,10 @@
+## [0.5.1](https://github.com/admindsCH/adminds/compare/v0.5.0...v0.5.1) (2026-03-30)
+
+
+### Bug Fixes
+
+* reduce tokens by focusing on relevatnt rubriques only per section in report ([29389b3](https://github.com/admindsCH/adminds/commit/29389b3b09e18996bac09c7a47dd0d03d0855dc2))
+
 # [0.5.0](https://github.com/admindsCH/adminds/compare/v0.4.1...v0.5.0) (2026-03-30)
 
 
