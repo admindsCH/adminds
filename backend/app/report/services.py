@@ -46,12 +46,16 @@ def _build_patient_context(
         if doctor_profile.cabinet_address:
             addr_parts.append(doctor_profile.cabinet_address)
         if doctor_profile.cabinet_npa or doctor_profile.cabinet_city:
-            addr_parts.append(f"{doctor_profile.cabinet_npa or ''} {doctor_profile.cabinet_city or ''}".strip())
+            addr_parts.append(
+                f"{doctor_profile.cabinet_npa or ''} {doctor_profile.cabinet_city or ''}".strip()
+            )
         if addr_parts:
             lines.append(f"  Adresse: {', '.join(addr_parts)}")
         parts.append("\n".join(lines))
     elif doctor_name:
-        parts.append(f"MÉDECIN RÉDACTEUR (signataire du rapport, psychiatre traitant): {doctor_name}")
+        parts.append(
+            f"MÉDECIN RÉDACTEUR (signataire du rapport, psychiatre traitant): {doctor_name}"
+        )
 
     if dossier.raw_content:
         parts.append(
@@ -122,7 +126,9 @@ async def _generate_section(
     Returns a dict mapping field IDs to generated values.
     """
     field_ids = [f["id"] for f in section_fields]
-    logger.info(f"Section '{section_name}': sending {len(section_fields)} fields to LLM: {field_ids}")
+    logger.info(
+        f"Section '{section_name}': sending {len(section_fields)} fields to LLM: {field_ids}"
+    )
 
     system_prompt = build_system_prompt(
         canton_name=canton_name,
@@ -146,7 +152,9 @@ async def _generate_section(
     values = {k: v for k, v in values.items() if v is not None}
 
     logger.info(f"Section '{section_name}': {len(values)} fields filled")
-    logger.info(f"Section '{section_name}' field_values: {json.dumps(values, ensure_ascii=False)}")
+    logger.info(
+        f"Section '{section_name}' field_values: {json.dumps(values, ensure_ascii=False)}"
+    )
     return values
 
 
@@ -180,7 +188,9 @@ async def generate_report(
         section_groups[entry["section"]].append(entry)
 
     # Build a lookup: field_id → mapped_rubrique
-    rubrique_by_field = {f.id: f.mapped_rubrique for f in schema.fields if f.mapped_rubrique}
+    rubrique_by_field = {
+        f.id: f.mapped_rubrique for f in schema.fields if f.mapped_rubrique
+    }
 
     logger.info(
         f"Generating report: template_id={template_id}, "
@@ -190,10 +200,14 @@ async def generate_report(
 
     # Debug: save generation inputs
     safe_template_id = template_id.replace("/", "_")
-    store.save_debug(dossier_id, f"gen_{safe_template_id}_prompt_schema.json", prompt_schema)
-    store.save_debug(dossier_id, f"gen_{safe_template_id}_sections.json", {
-        name: fields for name, fields in section_groups.items()
-    })
+    store.save_debug(
+        dossier_id, f"gen_{safe_template_id}_prompt_schema.json", prompt_schema
+    )
+    store.save_debug(
+        dossier_id,
+        f"gen_{safe_template_id}_sections.json",
+        {name: fields for name, fields in section_groups.items()},
+    )
 
     # 5. Build per-section patient context (only relevant rubriques)
     section_tasks = []
@@ -233,8 +247,14 @@ async def generate_report(
     # Debug: save per-section results and merged field values
     for (section_name, _), section_vals in zip(section_groups.items(), section_results):
         safe_section = section_name.replace("/", "_").replace(" ", "_")[:50]
-        store.save_debug(dossier_id, f"gen_{safe_template_id}_section_{safe_section}.json", section_vals)
-    store.save_debug(dossier_id, f"gen_{safe_template_id}_merged_field_values.json", field_values)
+        store.save_debug(
+            dossier_id,
+            f"gen_{safe_template_id}_section_{safe_section}.json",
+            section_vals,
+        )
+    store.save_debug(
+        dossier_id, f"gen_{safe_template_id}_merged_field_values.json", field_values
+    )
 
     # 6. Fill template
     template_bytes = blob_storage.download_template(user_id, template_id)

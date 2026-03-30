@@ -7,11 +7,12 @@ import SecuritySection from "./_components/security-section";
 import TeamShowcase from "./_components/team-showcase";
 import FaqSection from "./_components/faq-section";
 import CalendlyEmbed from "./_components/calendly-embed";
+import MobileNav from "./_components/mobile-nav";
 import { Logo } from "@/components/logo";
 
 const NAV_LINKS = [
   { href: "#probleme", label: "Le problème" },
-  { href: "#fonctionnalites", label: "Fonctionnalités" },
+  { href: "#fonctionnalites", label: "Comment ça marche" },
   { href: "#securite", label: "Sécurité" },
   { href: "#equipe", label: "L'équipe" },
   { href: "#demo", label: "Accès bêta" },
@@ -46,16 +47,17 @@ export default function LandingPage() {
           <div className="flex items-center gap-4">
             <a
               href="/sign-in"
-              className="text-sm text-zinc-500 hover:text-zinc-900 transition-colors"
+              className="hidden sm:block text-sm text-zinc-500 hover:text-zinc-900 transition-colors"
             >
               Se connecter
             </a>
             <a
               href="#demo"
-              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-semibold transition-colors"
+              className="hidden md:block px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-sm font-semibold transition-colors"
             >
               Demander un accès
             </a>
+            <MobileNav links={NAV_LINKS} />
           </div>
         </div>
       </header>
@@ -91,8 +93,8 @@ export default function LandingPage() {
 
       <SectionDivider />
 
-      {/* ─── 3. Trois étapes ─── */}
-      <section className="py-20 sm:py-28 px-6">
+      {/* ─── 3. Comment ça marche + Fonctionnalités ─── */}
+      <section id="fonctionnalites" className="py-20 sm:py-28 px-6">
         <div className="mx-auto max-w-5xl">
           <div className="text-center mb-16">
             <div className="text-xs font-semibold text-indigo-600 uppercase tracking-wider mb-3">
@@ -110,7 +112,26 @@ export default function LandingPage() {
             </p>
           </div>
           <TimeComparison />
+
+          {/* Features grid — below the comparison */}
+          <div className="mt-20">
+            <div className="text-center mb-12">
+              <h3
+                className="text-2xl sm:text-3xl font-normal tracking-tight text-zinc-900"
+                style={{ fontFamily: "var(--font-serif)" }}
+              >
+                Tout ce que vous faites à 19h,{" "}
+                <span className="text-zinc-400">fait en 10 minutes.</span>
+              </h3>
+              <p className="mt-4 text-zinc-500 max-w-2xl mx-auto leading-relaxed">
+                Rapport AI, attestation perte de gain, rapport d&apos;assurance...
+                Si c&apos;est un formulaire que vous remplissez après les consultations,
+                Adminds le génère pour vous.
+              </p>
+            </div>
+          </div>
         </div>
+        <FeaturesSection />
       </section>
 
       <SectionDivider />
@@ -142,33 +163,7 @@ export default function LandingPage() {
 
       <SectionDivider />
 
-      {/* ─── 6. Fonctionnalités ─── */}
-      <section id="fonctionnalites" className="py-20 sm:py-28 bg-zinc-50/50">
-        <div className="mx-auto max-w-5xl px-6">
-          <div className="text-center mb-16">
-            <div className="text-xs font-semibold text-indigo-600 uppercase tracking-wider mb-3">
-              Fonctionnalités
-            </div>
-            <h2
-              className="text-3xl sm:text-4xl font-normal tracking-tight text-zinc-900"
-              style={{ fontFamily: "var(--font-serif)" }}
-            >
-              Tout ce que vous faites à 19h,{" "}
-              <span className="text-zinc-400">fait en 10 minutes.</span>
-            </h2>
-            <p className="mt-4 text-zinc-500 max-w-2xl mx-auto leading-relaxed">
-              Rapport AI, attestation perte de gain, rapport d&apos;assurance...
-              Si c&apos;est un formulaire que vous remplissez après les consultations,
-              Adminds le génère pour vous.
-            </p>
-          </div>
-        </div>
-        <FeaturesSection />
-      </section>
-
-      <SectionDivider />
-
-      {/* ─── 7. Sécurité ─── */}
+      {/* ─── 5. Sécurité ─── */}
       <section id="securite" className="py-20 sm:py-28 px-6">
         <div className="mx-auto max-w-5xl">
           <div className="text-center mb-16">
