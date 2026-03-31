@@ -104,7 +104,7 @@ export default function LandingPage() {
               className="text-3xl sm:text-4xl font-normal tracking-tight text-zinc-900"
               style={{ fontFamily: "var(--font-serif)" }}
             >
-              Importez. Générez. Signez.
+              Importez. Générez. Validez.
             </h2>
             <p className="mt-4 text-zinc-500 max-w-2xl mx-auto leading-relaxed">
               Votre dossier patient entre dans Adminds. Un rapport conforme en sort.
@@ -154,7 +154,7 @@ export default function LandingPage() {
               Le rapport d&apos;assurance invalidité est le document le plus lourd
               à rédiger. Importez le dossier, et l&apos;IA remplit chaque section
               du formulaire cantonal — Foerster, CIM-10, jurisprudence fédérale.
-              Vous relisez, vous ajustez, vous signez.
+              Vous relisez, vous ajustez, vous validez.
             </p>
           </div>
           <ReportMockup />
