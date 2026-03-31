@@ -1,7 +1,6 @@
 import Hero from "./_components/hero";
 import AdminBurden from "./_components/admin-burden";
 import TimeComparison from "./_components/time-comparison";
-import ReportMockup from "./_components/report-mockup";
 import FeaturesSection from "./_components/features-section";
 import SecuritySection from "./_components/security-section";
 import TeamShowcase from "./_components/team-showcase";
@@ -157,7 +156,20 @@ export default function LandingPage() {
               Vous relisez, vous ajustez, vous validez.
             </p>
           </div>
-          <ReportMockup />
+          {/* Demo video */}
+          <div className="relative mx-auto max-w-4xl rounded-2xl overflow-hidden border border-zinc-200 shadow-lg shadow-zinc-200/50">
+            <video
+              className="w-full h-auto"
+              autoPlay
+              loop
+              muted
+              playsInline
+              preload="metadata"
+              poster=""
+            >
+              <source src="https://cpppm2ovmxed6qea.public.blob.vercel-storage.com/demo_adminds.mp4" type="video/mp4" />
+            </video>
+          </div>
         </div>
       </section>
 
