@@ -1,3 +1,10 @@
+## [0.5.3](https://github.com/admindsCH/adminds/compare/v0.5.2...v0.5.3) (2026-03-31)
+
+
+### Bug Fixes
+
+* replace signez with validez ([75dea62](https://github.com/admindsCH/adminds/commit/75dea6228f2491a64d161f6d70ee2364232236f2))
+
 ## [0.5.2](https://github.com/admindsCH/adminds/compare/v0.5.1...v0.5.2) (2026-03-30)
 
 
