@@ -7,6 +7,7 @@ Supports both .docx and .pdf templates:
 
 from __future__ import annotations
 
+import asyncio
 import re
 import unicodedata
 
@@ -132,27 +133,33 @@ async def upload_and_extract(
     template_format = "pdf" if is_pdf else "docx"
     ext = "pdf" if is_pdf else "docx"
 
-    # ── Step 1: Classify with LLM ────────────────────────
-    # For PDFs, extract text via PyMuPDF for classification
-    if is_pdf:
-        classify_bytes = _extract_pdf_text_for_classification(file_bytes)
-    else:
-        classify_bytes = file_bytes
+    # ── Step 1: Classify + extract raw slots in parallel ──
+    # Classification (LLM) and slot extraction (CPU) are independent,
+    # so we run them concurrently to cut ~30-50% of total time.
+    classify_bytes = file_bytes
 
-    try:
-        metadata = await classify_template(classify_bytes, is_pdf=is_pdf)
-    except Exception as e:
-        logger.error(f"Classification failed for '{filename}': {e}")
-        metadata = {
-            "name": filename.rsplit(".", 1)[0],
-            "description": "Formulaire importe",
-            "category": "rapport-medical",
-            "canton": "all",
-            "insurance_id": "",
-            "page_count": "1",
-            "estimated_minutes": "3",
-            "is_official": "false",
-        }
+    async def _classify():
+        try:
+            return await classify_template(classify_bytes, is_pdf=is_pdf)
+        except Exception as e:
+            logger.error(f"Classification failed for '{filename}': {e}")
+            return {
+                "name": filename.rsplit(".", 1)[0],
+                "description": "Formulaire importe",
+                "category": "rapport-medical",
+                "canton": "all",
+                "insurance_id": "",
+                "page_count": "1",
+                "estimated_minutes": "3",
+                "is_official": "false",
+            }
+
+    async def _extract():
+        # extract_raw_slots is sync/CPU, run in thread to not block event loop
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, extract_raw_slots, file_bytes)
+
+    metadata, raw_slots = await asyncio.gather(_classify(), _extract())
 
     metadata["template_format"] = template_format
 
@@ -184,9 +191,11 @@ async def upload_and_extract(
         metadata=metadata,
     )
 
-    # ── Step 4: Extract schema ───────────────────────────
+    # ── Step 4: Label slots + store schema ─────────────────
     try:
-        await extract_and_store_schema(user_id, template_id, metadata["name"], template_format)
+        await label_and_store_schema(
+            user_id, template_id, metadata["name"], template_format, raw_slots
+        )
     except Exception as e:
         logger.error(f"Schema extraction failed for '{template_id}': {e}")
         # Roll back: remove the blob so we don't leave a broken template
@@ -229,27 +238,26 @@ def download_template(user_id: str, template_id: str) -> Response:
     return Response(content=file_bytes, media_type=content_type)
 
 
-def _extract_pdf_text_for_classification(pdf_bytes: bytes) -> bytes:
-    """Extract text from PDF for the classifier (returns fake docx bytes marker).
 
-    We pass the raw PDF bytes — the classifier will handle it.
-    """
-    return pdf_bytes
-
-
-async def extract_and_store_schema(
+async def label_and_store_schema(
     user_id: str,
     template_id: str,
     template_name: str,
     template_format: str = "docx",
+    raw_slots: list | None = None,
 ) -> TemplateSchema:
-    """Run Pass 1: extract raw slots, label them with LLM, store schema."""
+    """Label pre-extracted raw slots with LLM and store the schema.
+
+    If raw_slots is None, falls back to downloading + extracting.
+    """
     logger.info(
-        f"Extracting schema for template '{template_id}' ({template_name}, {template_format})"
+        f"Labeling schema for template '{template_id}' ({template_name}, {template_format})"
     )
 
-    file_bytes = blob_storage.download_template(user_id, template_id)
-    raw_slots = extract_raw_slots(file_bytes)
+    if raw_slots is None:
+        file_bytes = blob_storage.download_template(user_id, template_id)
+        raw_slots = extract_raw_slots(file_bytes)
+
     logger.info(f"Found {len(raw_slots)} raw slots")
 
     schema = await label_slots(raw_slots, template_name)
@@ -263,6 +271,18 @@ async def extract_and_store_schema(
     )
 
     return schema
+
+
+async def extract_and_store_schema(
+    user_id: str,
+    template_id: str,
+    template_name: str,
+    template_format: str = "docx",
+) -> TemplateSchema:
+    """Run full extraction: extract raw slots, label with LLM, store schema."""
+    return await label_and_store_schema(
+        user_id, template_id, template_name, template_format
+    )
 
 
 def get_schema(user_id: str, template_id: str) -> TemplateSchema | None:

@@ -90,6 +90,8 @@ def _extract_pdf_fields(pdf_bytes: bytes) -> list[RawSlot]:
     for page_num in range(len(doc)):
         page = doc[page_num]
         page_headings = _extract_section_headings(page)
+        # Cache text blocks once per page (avoid re-extracting per widget)
+        page_blocks = page.get_text("blocks")
 
         for widget in page.widgets():
             field_name = widget.field_name
@@ -106,8 +108,7 @@ def _extract_pdf_fields(pdf_bytes: bytes) -> list[RawSlot]:
                     options.append(v[0] if isinstance(v, tuple) else str(v))
 
             # Build context: section heading + nearby text
-            # Use page-local headings for this page (no offset needed)
-            context = _get_widget_context(page, widget, page_headings)
+            context = _get_widget_context(widget, page_blocks, page_headings)
 
             slots.append(
                 RawSlot(
@@ -145,8 +146,8 @@ def _map_widget_type(widget: fitz.Widget) -> str:
 
 
 def _get_widget_context(
-    page: fitz.Page,
     widget: fitz.Widget,
+    page_blocks: list,
     section_headings: list[tuple[float, str]],
     max_chars: int = 200,
 ) -> str:
@@ -155,6 +156,11 @@ def _get_widget_context(
     Combines:
     1. The current section heading (closest heading above the widget)
     2. Nearby text blocks (labels directly next to the field)
+
+    Args:
+        widget: The PDF widget.
+        page_blocks: Pre-extracted text blocks from page.get_text("blocks").
+        section_headings: Pre-extracted headings from _extract_section_headings().
     """
     wr = widget.rect
 
@@ -173,10 +179,9 @@ def _get_widget_context(
         wr.x1 + 250,
         wr.y1 + 25,
     )
-    blocks = page.get_text("blocks")
     nearby: list[tuple[float, str]] = []
 
-    for block in blocks:
+    for block in page_blocks:
         bx0, by0, bx1, by1, text, *_ = block
         if not isinstance(text, str) or not text.strip():
             continue
