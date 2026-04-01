@@ -10,6 +10,7 @@ SlotType = Literal[
     "form_field",  # legacy ffData form field
     "table_cell",  # table cell (empty or choice grid)
     "header_label",  # static label cell for text replacement
+    "paragraph",  # numbered question in plain-text Q&A document
     # PDF slots
     "pdf_field",  # AcroForm widget (text, checkbox, combo, etc.)
 ]
@@ -29,6 +30,7 @@ class RawSlot(BaseModel):
     #   form_field   → {"ff_index": int}
     #   table_cell   → {"table_index": int, "row": int, "col": int}
     #   header_label → {"table_index": int, "row": int, "col": int}
+    #   paragraph    → {"paragraph_index": int}
     #   pdf_field    → {"field_name": str}  (AcroForm field name is the key)
     position: dict[str, Any]
 

@@ -232,11 +232,11 @@ def download_template(user_id: str, template_id: str) -> Response:
     meta = blob_storage.get_template_metadata(user_id, template_id)
     fmt = meta.get("template_format", "docx")
     content_type = (
-        "application/pdf" if fmt == "pdf"
+        "application/pdf"
+        if fmt == "pdf"
         else "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
     )
     return Response(content=file_bytes, media_type=content_type)
-
 
 
 async def label_and_store_schema(

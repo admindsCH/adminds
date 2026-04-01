@@ -238,6 +238,69 @@ def _extract_docx_slots(docx_bytes: bytes) -> list[RawSlot]:
     slots: list[RawSlot] = []
     slots.extend(_extract_form_fields(root))
     slots.extend(_extract_table_slots(root))
+
+    # Fallback: plain-text Q&A documents with no structured fields
+    if not slots:
+        slots.extend(_extract_paragraph_slots(doc))
+
+    return slots
+
+
+# ── Paragraph Q&A extraction (fallback) ────────────────
+
+
+_QUESTION_RE = re.compile(r"^\d+[\.\-\)_]+\s")
+
+
+def _extract_paragraph_slots(doc: Document) -> list[RawSlot]:
+    """Fallback extractor for plain-text Q&A documents.
+
+    Detects numbered questions (e.g. "1-", "2.", "3)") and emits one
+    text slot per question.  Sub-items (bullets, lettered items) between
+    questions are collected as context.
+    """
+    paragraphs = doc.paragraphs
+    # First pass: find indices of top-level numbered questions
+    question_indices: list[int] = []
+    for i, para in enumerate(paragraphs):
+        if _QUESTION_RE.match(para.text.strip()):
+            question_indices.append(i)
+
+    if not question_indices:
+        return []
+
+    slots: list[RawSlot] = []
+    for q_pos, q_idx in enumerate(question_indices):
+        # Determine where this question's content ends
+        next_q_idx = (
+            question_indices[q_pos + 1] if q_pos + 1 < len(question_indices)
+            else len(paragraphs)
+        )
+        # Build context: question text + all sub-items until next question
+        parts = [paragraphs[q_idx].text.strip()]
+        for j in range(q_idx + 1, next_q_idx):
+            sub = paragraphs[j].text.strip()
+            if sub:
+                parts.append(sub)
+        context = " | ".join(parts)
+
+        # Insert answer after the last non-empty paragraph of this question,
+        # so for questions with sub-items the answer goes after the sub-items.
+        insert_after = q_idx
+        for j in range(next_q_idx - 1, q_idx, -1):
+            if paragraphs[j].text.strip():
+                insert_after = j
+                break
+
+        slots.append(
+            RawSlot(
+                slot_type="paragraph",
+                position={"paragraph_index": q_idx, "insert_after": insert_after},
+                detected_field_type="text",
+                context=context,
+            )
+        )
+
     return slots
 
 

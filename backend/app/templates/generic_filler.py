@@ -45,6 +45,10 @@ def fill_template(
     all_ff = doc.element.findall(f".//{W}ffData")
     tables = doc.element.findall(f".//{W}tbl")
 
+    # Separate paragraph fields: they must be filled in reverse order
+    # because each insertion shifts subsequent paragraph indices.
+    paragraph_fields: list[tuple[SchemaField, str]] = []
+
     for field in schema.fields:
         value = field_values.get(field.id)
         if value is None or value == "":
@@ -58,6 +62,14 @@ def fill_template(
 
         elif field.slot_type == "header_label":
             _fill_header_label(tables, field, str(value))
+
+        elif field.slot_type == "paragraph":
+            paragraph_fields.append((field, str(value)))
+
+    # Fill paragraphs last, in reverse order so indices stay valid
+    paragraph_fields.sort(key=lambda x: x[0].position.get("insert_after", x[0].position.get("paragraph_index", 0)), reverse=True)
+    for field, value in paragraph_fields:
+        _fill_paragraph(doc, field, value)
 
     buf = io.BytesIO()
     doc.save(buf)
@@ -313,3 +325,24 @@ def _replace_cell_label(
         if t.text and original in t.text:
             t.text = t.text.replace(original, replacement)
             return
+
+
+def _fill_paragraph(
+    doc: Document,
+    field: SchemaField,
+    value: str,
+) -> None:
+    """Insert answer text after the last sub-item of the question."""
+    # insert_after points to the last paragraph belonging to this question
+    # (after sub-items), falling back to the question paragraph itself.
+    insert_idx = field.position.get("insert_after", field.position.get("paragraph_index"))
+    if insert_idx is None or insert_idx >= len(doc.paragraphs):
+        return
+
+    target_para = doc.paragraphs[insert_idx]
+    new_p = etree.Element(f"{W}p")
+    r = etree.SubElement(new_p, f"{W}r")
+    t = etree.SubElement(r, f"{W}t")
+    t.text = value
+    t.set("{http://www.w3.org/XML/1998/namespace}space", "preserve")
+    target_para._element.addnext(new_p)
