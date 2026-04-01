@@ -1,3 +1,10 @@
+## [0.5.4](https://github.com/admindsCH/adminds/compare/v0.5.3...v0.5.4) (2026-04-01)
+
+
+### Bug Fixes
+
+* extract text for docx docuemnts ([31462dd](https://github.com/admindsCH/adminds/commit/31462dd00f6e9d9ea7ca9adfd6217f84958ff5d3))
+
 ## [0.5.3](https://github.com/admindsCH/adminds/compare/v0.5.2...v0.5.3) (2026-03-31)
 
 
