@@ -44,15 +44,18 @@ _CHOICE_HEADERS = {
     "no",
 }
 
+
 # Normalize header text for matching: strip accents and extra whitespace
 def _normalize_header(text: str) -> str:
     """Normalize a table header for choice grid detection."""
     import unicodedata as _ud
+
     text = text.strip().lower()
     text = " ".join(text.split())  # collapse whitespace
     text = _ud.normalize("NFKD", text)
     text = text.encode("ascii", "ignore").decode("ascii")
     return text
+
 
 _PLACEHOLDER_RE = re.compile(
     r"^[\s_.…\u2026\[\]()]*$"
@@ -273,7 +276,8 @@ def _extract_paragraph_slots(doc: Document) -> list[RawSlot]:
     for q_pos, q_idx in enumerate(question_indices):
         # Determine where this question's content ends
         next_q_idx = (
-            question_indices[q_pos + 1] if q_pos + 1 < len(question_indices)
+            question_indices[q_pos + 1]
+            if q_pos + 1 < len(question_indices)
             else len(paragraphs)
         )
         # Build context: question text + all sub-items until next question
@@ -429,8 +433,17 @@ def _extract_table_slots(root: etree._Element) -> list[RawSlot]:
         # Identify which columns are choice columns (for "X" marking)
         choice_col_indices = set(choice_columns.values()) if choice_columns else set()
 
-        _DETAIL_KEYWORDS = ("préciser", "preciser", "genre", "rendement",
-                            "taux", "durée", "duree", "fréquence", "frequence")
+        _DETAIL_KEYWORDS = (
+            "préciser",
+            "preciser",
+            "genre",
+            "rendement",
+            "taux",
+            "durée",
+            "duree",
+            "fréquence",
+            "frequence",
+        )
 
         for row_idx, row in enumerate(rows):
             cells = row.findall(f"{W}tc")
@@ -447,7 +460,11 @@ def _extract_table_slots(root: etree._Element) -> list[RawSlot]:
                     if _cc_col < len(cells):
                         cc_text = _get_cell_text(cells[_cc_col]).strip()
                         # Choice cells should be empty or contain only short markers
-                        if cc_text and len(cc_text) > 3 and cc_text.lower() not in ("x", "☒", "☐"):
+                        if (
+                            cc_text
+                            and len(cc_text) > 3
+                            and cc_text.lower() not in ("x", "☒", "☐")
+                        ):
                             row_follows_choice = False
                             break
 
@@ -473,7 +490,11 @@ def _extract_table_slots(root: etree._Element) -> list[RawSlot]:
                                 choice_columns=choice_columns,
                             )
                         )
-                elif row_follows_choice and visual_col not in choice_col_indices and visual_col > 0:
+                elif (
+                    row_follows_choice
+                    and visual_col not in choice_col_indices
+                    and visual_col > 0
+                ):
                     # Non-choice column in a choice grid row → justification/detail text
                     row_label = _get_cell_text(cells[0]).strip() if cells else ""
                     col_header = ""
@@ -482,7 +503,9 @@ def _extract_table_slots(root: etree._Element) -> list[RawSlot]:
                         if col_idx < len(header_cells):
                             col_header = _get_cell_text(header_cells[col_idx]).strip()
                     is_empty = not cell_text
-                    is_placeholder = bool(cell_text and _PLACEHOLDER_RE.match(cell_text))
+                    is_placeholder = bool(
+                        cell_text and _PLACEHOLDER_RE.match(cell_text)
+                    )
                     is_detail_col = col_header and any(
                         kw in col_header.lower() for kw in _DETAIL_KEYWORDS
                     )
@@ -503,7 +526,12 @@ def _extract_table_slots(root: etree._Element) -> list[RawSlot]:
                                 context=context,
                             )
                         )
-                elif choice_columns and row_idx > 0 and not row_follows_choice and visual_col > 0:
+                elif (
+                    choice_columns
+                    and row_idx > 0
+                    and not row_follows_choice
+                    and visual_col > 0
+                ):
                     # Non-choice row in a choice grid table (e.g. D.3 with "Fréquence"/"Durée")
                     # → treat each non-label cell as a text field
                     row_label = _get_cell_text(cells[0]).strip() if cells else ""
@@ -513,12 +541,19 @@ def _extract_table_slots(root: etree._Element) -> list[RawSlot]:
                         if col_idx < len(header_cells):
                             col_header = _get_cell_text(header_cells[col_idx]).strip()
                     is_empty = not cell_text
-                    is_placeholder = bool(cell_text and _PLACEHOLDER_RE.match(cell_text))
+                    is_placeholder = bool(
+                        cell_text and _PLACEHOLDER_RE.match(cell_text)
+                    )
                     has_label_with_space = cell_text and ":" in cell_text
                     is_detail_cell = cell_text and any(
                         kw in cell_text.lower() for kw in _DETAIL_KEYWORDS
                     )
-                    if is_empty or is_placeholder or has_label_with_space or is_detail_cell:
+                    if (
+                        is_empty
+                        or is_placeholder
+                        or has_label_with_space
+                        or is_detail_cell
+                    ):
                         context = f"[Table] {table_context} | Row: {row_label} | Cell: {cell_text} | Headers: {', '.join(header_texts)}"
                         slots.append(
                             RawSlot(

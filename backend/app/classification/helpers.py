@@ -7,6 +7,7 @@ import io
 import tempfile
 from pathlib import PurePath
 
+from docx import Document
 from langchain_core.messages import HumanMessage, SystemMessage
 from liteparse import LiteParse
 from loguru import logger
@@ -120,18 +121,40 @@ async def extract_text_vision(filename: str, file_bytes: bytes) -> str:
     return text
 
 
-def extract_text(filename: str, file_bytes: bytes) -> str:
-    """Extract text from any supported file using LiteParse.
+def _extract_text_docx(file_bytes: bytes) -> str:
+    """Extract text from a .docx file using python-docx.
 
-    Writes the file to a temp path, runs LiteParse (handles PDF, DOCX,
-    images with OCR), and returns the extracted text.
+    Reads all paragraphs and table cells, preserving document order.
+    """
+    doc = Document(io.BytesIO(file_bytes))
+    parts: list[str] = []
+
+    for para in doc.paragraphs:
+        text = para.text.strip()
+        if text:
+            parts.append(text)
+
+    for table in doc.tables:
+        for row in table.rows:
+            row_texts = [cell.text.strip() for cell in row.cells if cell.text.strip()]
+            if row_texts:
+                parts.append(" | ".join(row_texts))
+
+    return "\n\n".join(parts)
+
+
+def extract_text(filename: str, file_bytes: bytes) -> str:
+    """Extract text from any supported file.
+
+    Uses python-docx for .docx files, LiteParse for everything else
+    (PDF, images with OCR, etc.).
 
     Args:
         filename: Original filename (used for extension detection).
         file_bytes: Raw file content.
 
     Returns:
-        Extracted text string. Empty string if extraction fails.
+        Extracted text string.
     """
     ext = PurePath(filename).suffix.lower()
 
@@ -139,7 +162,18 @@ def extract_text(filename: str, file_bytes: bytes) -> str:
         logger.warning(f"Unsupported file type: {filename}")
         return f"[Fichier non supporté: {filename}]"
 
-    # LiteParse needs a file path — write to a temp file.
+    # .docx: use python-docx directly (faster, more reliable)
+    if ext == ".docx":
+        logger.info(f"Extracting text from '{filename}' via python-docx...")
+        try:
+            text = _extract_text_docx(file_bytes)
+            logger.info(f"Extracted {len(text)} chars from '{filename}'")
+            return text
+        except Exception:
+            logger.exception(f"python-docx failed for '{filename}'")
+            return f"[Erreur d'extraction: {filename}]"
+
+    # Everything else: LiteParse (PDF, .doc, images with OCR)
     with tempfile.NamedTemporaryFile(suffix=ext, delete=True) as tmp:
         tmp.write(file_bytes)
         tmp.flush()
