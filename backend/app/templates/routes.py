@@ -3,6 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, File, UploadFile
 from fastapi.responses import Response
 
+from app.analytics.db import track
 from app.auth import CurrentUser, get_current_user
 from app.templates import services
 from app.templates.schemas import (
@@ -21,6 +22,7 @@ async def upload_template(
     file: UploadFile = File(...),
 ) -> TemplateResponse:
     """Upload a template (.docx or .pdf). Auto-detects format, classifies, extracts schema."""
+    track(user.user_id, "template_uploaded", {"filename": file.filename or "template.docx"})
     return await services.upload_and_extract(
         user.user_id, await file.read(), file.filename or "template.docx"
     )
@@ -31,6 +33,7 @@ async def list_templates(
     user: CurrentUser = Depends(get_current_user),
 ) -> list[TemplateResponse]:
     """List templates owned by the current user."""
+    track(user.user_id, "templates_listed")
     return services.list_templates(user.user_id)
 
 

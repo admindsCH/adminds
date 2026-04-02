@@ -1,7 +1,9 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, File, Form, UploadFile
+from fastapi import APIRouter, Depends, File, Form, UploadFile
 
+from app.analytics.db import track
+from app.auth import CurrentUser, get_current_user
 from app.classification import services
 from app.classification.schemas import (
     ChatRequest,
@@ -19,8 +21,10 @@ router = APIRouter(tags=["classification"])
 async def classify(
     files: list[UploadFile] = File(...),
     doctor_name: str | None = Form(None),
+    user: CurrentUser = Depends(get_current_user),
 ) -> list[ClassifiedDocument]:
     """Classify uploaded files — fast per-file labeling for Step 1 UI badges."""
+    track(user.user_id, "documents_classified", {"file_count": len(files)})
     return await services.classify_documents(files, doctor_name=doctor_name)
 
 
@@ -31,8 +35,12 @@ async def classify_one(file: UploadFile = File(...)) -> ClassifiedDocument:
 
 
 @router.post("/parse-dossier-stream")
-async def parse_dossier_stream(files: list[UploadFile] = File(...)):
+async def parse_dossier_stream(
+    files: list[UploadFile] = File(...),
+    user: CurrentUser = Depends(get_current_user),
+):
     """Parse documents and stream SSE progress events as each rubrique is extracted."""
+    track(user.user_id, "patient_data_loaded", {"file_count": len(files)})
     return services.parse_dossier_stream(files)
 
 
@@ -43,8 +51,13 @@ async def get_dossier(dossier_id: str) -> DossierResponse:
 
 
 @router.patch("/dossiers/{dossier_id}", response_model=DossierResponse)
-async def patch_dossier(dossier_id: str, patch: PatientDossierPatch) -> DossierResponse:
+async def patch_dossier(
+    dossier_id: str,
+    patch: PatientDossierPatch,
+    user: CurrentUser = Depends(get_current_user),
+) -> DossierResponse:
     """Partially update a stored dossier (inline edits from the frontend)."""
+    track(user.user_id, "dossier_edited", {"dossier_id": dossier_id})
     return services.patch_dossier(dossier_id, patch)
 
 

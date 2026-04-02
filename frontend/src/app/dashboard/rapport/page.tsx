@@ -5,6 +5,7 @@ import { useUser } from "@clerk/nextjs";
 import { Heading } from "@/components/heading";
 import { Text } from "@/components/text";
 import { Button } from "@/components/button";
+import { trackEvent } from "@/lib/analytics";
 import type { WizardDocument } from "./_types";
 import type { TemplateResponse } from "@/lib/api";
 import type { PatientDossier } from "@/lib/schemas/classification";
@@ -36,6 +37,9 @@ export default function RapportPage() {
   const { user } = useUser();
 
   const doctorName = user ? `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim() || undefined : undefined;
+
+  // Track step changes
+  const prevStepRef = useRef(-1);
 
   // Cross-step state
   const [step, setStep] = useState(0);
@@ -74,6 +78,14 @@ export default function RapportPage() {
       parsedDocIdsRef.current = null;
     }
   }, [docs]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Track step transitions
+  useEffect(() => {
+    if (step !== prevStepRef.current) {
+      trackEvent("step_completed", { step, title: STEP_TITLES[step] });
+      prevStepRef.current = step;
+    }
+  }, [step]);
 
   // Sync canton from Clerk metadata when it loads
   useEffect(() => {

@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { UserButton, useAuth, useUser } from "@clerk/nextjs";
 import { setTokenGetter } from "@/lib/api";
+import { trackEvent } from "@/lib/analytics";
 
 // ── Doctor Profile Form (rendered inside Clerk modal) ───
 
@@ -151,6 +152,50 @@ export default function DashboardLayout({
   // Wire Clerk token into all API calls — set eagerly (not in useEffect)
   // so it's available before child component effects fire.
   setTokenGetter(() => getToken());
+
+  // Track page visit once + heartbeat every 60s while tab is visible
+  const visitTracked = useRef(false);
+  useEffect(() => {
+    if (!user) return;
+
+    if (!visitTracked.current) {
+      visitTracked.current = true;
+      trackEvent("page_visit", { page: window.location.pathname });
+    }
+
+    // Heartbeat: sends a ping every 60s while the tab is visible
+    let interval: ReturnType<typeof setInterval> | null = null;
+
+    function startHeartbeat() {
+      if (interval) return;
+      interval = setInterval(() => {
+        trackEvent("heartbeat");
+      }, 60_000);
+    }
+
+    function stopHeartbeat() {
+      if (interval) {
+        clearInterval(interval);
+        interval = null;
+      }
+    }
+
+    function handleVisibility() {
+      if (document.visibilityState === "visible") {
+        startHeartbeat();
+      } else {
+        stopHeartbeat();
+      }
+    }
+
+    startHeartbeat();
+    document.addEventListener("visibilitychange", handleVisibility);
+
+    return () => {
+      stopHeartbeat();
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
+  }, [user]);
 
   return (
     <div className="flex min-h-screen flex-col bg-zinc-100 p-2">

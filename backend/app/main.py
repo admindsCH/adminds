@@ -6,6 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 
+from app.analytics.routes import router as analytics_router
 from app.classification.routes import router as classification_router
 from app.config import load_secrets_from_keyvault, settings
 from app.report.routes import router as report_router
@@ -86,6 +87,7 @@ async def health() -> HealthResponse:
 
 
 # Register routers
+app.include_router(analytics_router, prefix="/api")
 app.include_router(classification_router, prefix="/api")
 app.include_router(report_router, prefix="/api")
 app.include_router(templates_router, prefix="/api")
