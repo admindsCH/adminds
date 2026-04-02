@@ -1,3 +1,10 @@
+# [0.6.0](https://github.com/admindsCH/adminds/compare/v0.5.4...v0.6.0) (2026-04-02)
+
+
+### Features
+
+* monitoring ([ae0a16c](https://github.com/admindsCH/adminds/commit/ae0a16c13a1c4ad5946c02bd9966bf683f6181a2))
+
 ## [0.5.4](https://github.com/admindsCH/adminds/compare/v0.5.3...v0.5.4) (2026-04-01)
 
 
