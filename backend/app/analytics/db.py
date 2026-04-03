@@ -15,8 +15,14 @@ from loguru import logger
 
 # ── Database path ─────────────────────────────────────────
 
-_DB_DIR = Path(__file__).resolve().parent.parent.parent / "data"
-_DB_PATH = _DB_DIR / "analytics.db"
+def _resolve_db_path() -> Path:
+    """Use ANALYTICS_DB_PATH env var if set, otherwise fall back to backend/data/."""
+    from app.config import settings
+    if settings.analytics_db_path:
+        return Path(settings.analytics_db_path)
+    return Path(__file__).resolve().parent.parent.parent / "data" / "analytics.db"
+
+_DB_PATH: Path | None = None  # resolved lazily
 
 # ── Connection (lazy singleton) ───────────────────────────
 
@@ -25,11 +31,12 @@ _conn: sqlite3.Connection | None = None
 
 def _get_conn() -> sqlite3.Connection:
     """Return a module-level SQLite connection, creating the DB/table on first call."""
-    global _conn
+    global _conn, _DB_PATH
     if _conn is not None:
         return _conn
 
-    _DB_DIR.mkdir(parents=True, exist_ok=True)
+    _DB_PATH = _resolve_db_path()
+    _DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     _conn = sqlite3.connect(str(_DB_PATH), check_same_thread=False)
     _conn.execute("PRAGMA journal_mode=WAL")  # safe for concurrent reads
     _conn.execute(

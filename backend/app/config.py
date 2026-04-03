@@ -26,6 +26,9 @@ class Settings(BaseSettings):
     # Slack notifications
     slack_webhook_url: str = ""
 
+    # Analytics DB path (should be outside project dir in production)
+    analytics_db_path: str = ""
+
     azure_keyvault_url: str = ""
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
