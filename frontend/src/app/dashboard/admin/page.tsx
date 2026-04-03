@@ -386,7 +386,7 @@ function UserDetail({ userId, label, onClose }: { userId: string; label: string;
   useEffect(() => {
     setLoading(true);
     apiGet<RawEvent[]>(`/api/admin/analytics/events/${userId}`)
-      .then(setEvents)
+      .then((all) => setEvents(all.filter((e) => e.event_type !== "heartbeat")))
       .catch(() => setEvents([]))
       .finally(() => setLoading(false));
   }, [userId]);

@@ -208,10 +208,11 @@ def get_per_user_summary() -> list[dict]:
     """Return an aggregated summary per user: last seen, event counts, streaks, time spent."""
     conn = _get_conn()
 
-    # Last seen per user
+    # Last seen per user (exclude heartbeat from total count)
     users = conn.execute(
         """
-        SELECT user_id, MAX(created_at) as last_seen, COUNT(*) as total_events
+        SELECT user_id, MAX(created_at) as last_seen,
+               SUM(CASE WHEN event_type != 'heartbeat' THEN 1 ELSE 0 END) as total_events
         FROM events
         GROUP BY user_id
         ORDER BY last_seen DESC
