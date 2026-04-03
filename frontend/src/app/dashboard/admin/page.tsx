@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { useAuth, useUser } from "@clerk/nextjs";
+import { useUser } from "@clerk/nextjs";
 import { Heading, Subheading } from "@/components/heading";
 import { Text } from "@/components/text";
 import { Badge } from "@/components/badge";
@@ -146,109 +146,7 @@ function Heatmap30({ daily }: { daily: DailyActivity[] }) {
   );
 }
 
-// ── Streak card per user ─────────────────────────────────
-
-function StreakCard({
-  summary,
-  profile,
-}: {
-  summary: UserSummary;
-  profile?: UserProfile;
-}) {
-  const s = summary;
-  const label = profile?.email ?? s.user_id.slice(0, 16) + "...";
-  const name = profile?.name && profile.name !== "—" ? profile.name : null;
-
-  // Fire emoji scales with streak
-  const fireSize =
-    s.current_streak >= 7 ? "text-2xl" : s.current_streak >= 3 ? "text-xl" : "text-base";
-
-  return (
-    <div className="rounded-lg border border-zinc-200 p-4 space-y-3">
-      {/* User info */}
-      <div className="flex items-center justify-between">
-        <div className="min-w-0">
-          <p className="text-sm font-medium text-zinc-900 truncate">{label}</p>
-          {name && <p className="text-xs text-zinc-400 truncate">{name}</p>}
-        </div>
-        {s.current_streak > 0 && (
-          <span className={`${fireSize} leading-none`} title={`Streak: ${s.current_streak}j`}>
-            🔥
-          </span>
-        )}
-      </div>
-
-      {/* Streak numbers */}
-      <div className="grid grid-cols-3 gap-2 text-center">
-        <div>
-          <p className="text-lg font-bold text-zinc-900">{s.current_streak}</p>
-          <p className="text-[10px] uppercase tracking-wide text-zinc-400">Streak actuel</p>
-        </div>
-        <div>
-          <p className="text-lg font-bold text-zinc-900">{s.best_streak}</p>
-          <p className="text-[10px] uppercase tracking-wide text-zinc-400">Meilleur</p>
-        </div>
-        <div>
-          <p className="text-lg font-bold text-zinc-900">{s.days_active_30}<span className="text-xs font-normal text-zinc-400">/30</span></p>
-          <p className="text-[10px] uppercase tracking-wide text-zinc-400">Jours actifs</p>
-        </div>
-      </div>
-
-      {/* Time spent */}
-      <div className="grid grid-cols-3 gap-2 text-center border-t border-zinc-100 pt-2">
-        <div>
-          <p className="text-sm font-semibold text-zinc-700">{formatMinutes(s.time_spent.today_minutes)}</p>
-          <p className="text-[10px] uppercase tracking-wide text-zinc-400">Aujourd&apos;hui</p>
-        </div>
-        <div>
-          <p className="text-sm font-semibold text-zinc-700">{formatMinutes(s.time_spent.week_minutes)}</p>
-          <p className="text-[10px] uppercase tracking-wide text-zinc-400">Cette semaine</p>
-        </div>
-        <div>
-          <p className="text-sm font-semibold text-zinc-700">{formatMinutes(s.time_spent.total_minutes)}</p>
-          <p className="text-[10px] uppercase tracking-wide text-zinc-400">Total</p>
-        </div>
-      </div>
-
-      {/* 30-day heatmap */}
-      <div>
-        <Heatmap30 daily={s.daily_activity} />
-        <p className="mt-1 text-[10px] text-zinc-300">30 derniers jours</p>
-      </div>
-    </div>
-  );
-}
-
-// ── Activity sparkline (last 14 days) ────────────────────
-
-function ActivitySparkline({ daily }: { daily: DailyActivity[] }) {
-  // Build last 14 days
-  const days: number[] = [];
-  const today = new Date();
-  const map = new Map(daily.map((d) => [d.date, d.count]));
-
-  for (let i = 13; i >= 0; i--) {
-    const d = new Date(today);
-    d.setDate(d.getDate() - i);
-    const key = d.toISOString().slice(0, 10);
-    days.push(map.get(key) ?? 0);
-  }
-
-  const max = Math.max(...days, 1);
-
-  return (
-    <div className="flex items-end gap-0.5 h-8">
-      {days.map((count, i) => (
-        <div
-          key={i}
-          className="w-2 rounded-sm bg-indigo-500/80 transition-all"
-          style={{ height: `${Math.max((count / max) * 100, 4)}%` }}
-          title={`${count} événement${count !== 1 ? "s" : ""}`}
-        />
-      ))}
-    </div>
-  );
-}
+// ── (sparkline removed — engagement is now inline in user rows) ──
 
 // ── Field changes panel ──────────────────────────────────
 
@@ -377,9 +275,9 @@ function DiffRow({ oldVal, newVal }: { oldVal: string; newVal: string }) {
   );
 }
 
-// ── User detail panel ────────────────────────────────────
+// ── User event history panel ─────────────────────────────
 
-function UserDetail({ userId, label, onClose }: { userId: string; label: string; onClose: () => void }) {
+function UserEventHistory({ userId, label, onClose }: { userId: string; label: string; onClose: () => void }) {
   const [events, setEvents] = useState<RawEvent[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -452,6 +350,7 @@ export default function AdminAnalyticsPage() {
   const [error, setError] = useState<string | null>(null);
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
   const [fieldChangesUser, setFieldChangesUser] = useState<string | null>(null);
+  const [historyUser, setHistoryUser] = useState<string | null>(null);
 
   const isAdmin = user?.id && ADMIN_IDS.has(user.id);
 
@@ -537,22 +436,6 @@ export default function AdminAnalyticsPage() {
             </div>
           </div>
 
-          {/* Streak cards — sorted by current streak descending */}
-          <div className="mt-8">
-            <Subheading>Engagement</Subheading>
-            <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {[...summaries]
-                .sort((a, b) => b.current_streak - a.current_streak || b.days_active_30 - a.days_active_30)
-                .map((s) => (
-                  <StreakCard
-                    key={s.user_id}
-                    summary={s}
-                    profile={userProfiles[s.user_id]}
-                  />
-                ))}
-            </div>
-          </div>
-
           {/* User table */}
           <div className="mt-8">
             <Subheading>Par utilisateur</Subheading>
@@ -562,7 +445,7 @@ export default function AdminAnalyticsPage() {
                   <tr className="text-left text-zinc-500">
                     <th className="px-4 py-3 font-medium">Utilisateur</th>
                     <th className="px-4 py-3 font-medium">Dernière activité</th>
-                    <th className="px-4 py-3 font-medium">Activité 14j</th>
+                    <th className="px-4 py-3 font-medium text-center">Streak</th>
                     <th className="px-4 py-3 font-medium text-center">Rapports</th>
                     <th className="px-4 py-3 font-medium text-center">Dossiers</th>
                     <th className="px-4 py-3 font-medium text-center">Modifs champs</th>
@@ -570,73 +453,161 @@ export default function AdminAnalyticsPage() {
                     <th className="px-4 py-3 font-medium text-center">Total</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-zinc-100">
-                  {summaries.map((s) => (
-                    <tr
-                      key={s.user_id}
-                      className="cursor-pointer hover:bg-zinc-50 transition-colors"
-                      onClick={() => {
-                        setSelectedUser(selectedUser === s.user_id ? null : s.user_id);
-                        setFieldChangesUser(null);
-                      }}
-                    >
-                      <td className="px-4 py-3">
-                        <div>
-                          <span className="text-sm text-zinc-900">
-                            {userProfiles[s.user_id]?.email ?? s.user_id.slice(0, 20) + "..."}
-                          </span>
-                          {userProfiles[s.user_id]?.name && userProfiles[s.user_id].name !== "—" && (
-                            <span className="ml-2 text-xs text-zinc-400">
-                              {userProfiles[s.user_id].name}
-                            </span>
+                <tbody>
+                  {summaries.map((s) => {
+                    const isExpanded = selectedUser === s.user_id;
+                    return (
+                      <tr
+                        key={s.user_id}
+                        className="cursor-pointer hover:bg-zinc-50 transition-colors border-b border-zinc-100"
+                        onClick={() => {
+                          setSelectedUser(isExpanded ? null : s.user_id);
+                          setFieldChangesUser(null);
+                        }}
+                      >
+                        {/* Main row content in a single full-width cell using inner grid */}
+                        <td colSpan={8} className="p-0">
+                          <div className="grid grid-cols-[1fr_auto_auto_auto_auto_auto_auto_auto] items-center">
+                            {/* Utilisateur */}
+                            <div className="px-4 py-3">
+                              <div>
+                                <span className="text-sm text-zinc-900">
+                                  {userProfiles[s.user_id]?.email ?? s.user_id.slice(0, 20) + "..."}
+                                </span>
+                                {userProfiles[s.user_id]?.name && userProfiles[s.user_id].name !== "—" && (
+                                  <span className="ml-2 text-xs text-zinc-400">
+                                    {userProfiles[s.user_id].name}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            {/* Dernière activité */}
+                            <div className="px-4 py-3 text-zinc-500 text-sm">{timeAgo(s.last_seen)}</div>
+                            {/* Streak */}
+                            <div className="px-4 py-3 text-center">
+                              <div className="flex items-center justify-center gap-1">
+                                {s.current_streak > 0 && (
+                                  <span className={s.current_streak >= 7 ? "text-lg" : s.current_streak >= 3 ? "text-base" : "text-sm"}>
+                                    🔥
+                                  </span>
+                                )}
+                                <span className="text-sm font-semibold text-zinc-900">{s.current_streak}j</span>
+                              </div>
+                            </div>
+                            {/* Rapports */}
+                            <div className="px-4 py-3 text-center">
+                              <Badge color="green">{s.event_counts.report_generated ?? 0}</Badge>
+                            </div>
+                            {/* Dossiers */}
+                            <div className="px-4 py-3 text-center">
+                              <Badge color="emerald">{s.event_counts.patient_data_loaded ?? 0}</Badge>
+                            </div>
+                            {/* Modifs champs */}
+                            <div className="px-4 py-3 text-center">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setFieldChangesUser(fieldChangesUser === s.user_id ? null : s.user_id);
+                                  setSelectedUser(null);
+                                }}
+                                className="inline-flex"
+                                title="Voir les modifications de champs"
+                              >
+                                <Badge color="purple">
+                                  {(s.event_counts.field_values_edited ?? 0) +
+                                    (s.event_counts.field_regenerated ?? 0)}
+                                </Badge>
+                              </button>
+                            </div>
+                            {/* Temps */}
+                            <div className="px-4 py-3 text-center text-sm text-zinc-500">
+                              {formatMinutes(s.time_spent.total_minutes)}
+                            </div>
+                            {/* Total */}
+                            <div className="px-4 py-3 text-center text-sm font-medium text-zinc-700">
+                              {s.total_events}
+                            </div>
+                          </div>
+
+                          {/* Expanded engagement row */}
+                          {isExpanded && (
+                            <div className="border-t border-zinc-100 bg-zinc-50/50 px-4 py-3">
+                              <div className="flex items-center gap-8">
+                                {/* Streak details */}
+                                <div className="flex items-center gap-4">
+                                  <div className="text-center">
+                                    <p className="text-lg font-bold text-zinc-900">{s.current_streak}</p>
+                                    <p className="text-[10px] uppercase tracking-wide text-zinc-400">Streak actuel</p>
+                                  </div>
+                                  <div className="text-center">
+                                    <p className="text-lg font-bold text-zinc-900">{s.best_streak}</p>
+                                    <p className="text-[10px] uppercase tracking-wide text-zinc-400">Meilleur</p>
+                                  </div>
+                                  <div className="text-center">
+                                    <p className="text-lg font-bold text-zinc-900">{s.days_active_30}<span className="text-xs font-normal text-zinc-400">/30</span></p>
+                                    <p className="text-[10px] uppercase tracking-wide text-zinc-400">Jours actifs</p>
+                                  </div>
+                                </div>
+
+                                {/* Divider */}
+                                <div className="h-10 w-px bg-zinc-200" />
+
+                                {/* Time spent */}
+                                <div className="flex items-center gap-4">
+                                  <div className="text-center">
+                                    <p className="text-sm font-semibold text-zinc-700">{formatMinutes(s.time_spent.today_minutes)}</p>
+                                    <p className="text-[10px] uppercase tracking-wide text-zinc-400">Aujourd&apos;hui</p>
+                                  </div>
+                                  <div className="text-center">
+                                    <p className="text-sm font-semibold text-zinc-700">{formatMinutes(s.time_spent.week_minutes)}</p>
+                                    <p className="text-[10px] uppercase tracking-wide text-zinc-400">Cette semaine</p>
+                                  </div>
+                                  <div className="text-center">
+                                    <p className="text-sm font-semibold text-zinc-700">{formatMinutes(s.time_spent.total_minutes)}</p>
+                                    <p className="text-[10px] uppercase tracking-wide text-zinc-400">Total</p>
+                                  </div>
+                                </div>
+
+                                {/* Divider */}
+                                <div className="h-10 w-px bg-zinc-200" />
+
+                                {/* Heatmap */}
+                                <div>
+                                  <Heatmap30 daily={s.daily_activity} />
+                                  <p className="mt-1 text-[10px] text-zinc-300">30 derniers jours</p>
+                                </div>
+
+                                {/* Spacer + history button */}
+                                <div className="ml-auto">
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setHistoryUser(historyUser === s.user_id ? null : s.user_id);
+                                      setFieldChangesUser(null);
+                                    }}
+                                    className="rounded-md bg-zinc-100 px-3 py-1.5 text-xs font-medium text-zinc-600 hover:bg-zinc-200"
+                                  >
+                                    Voir historique
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
                           )}
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-zinc-500">{timeAgo(s.last_seen)}</td>
-                      <td className="px-4 py-3">
-                        <ActivitySparkline daily={s.daily_activity} />
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        <Badge color="green">{s.event_counts.report_generated ?? 0}</Badge>
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        <Badge color="emerald">{s.event_counts.patient_data_loaded ?? 0}</Badge>
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setFieldChangesUser(fieldChangesUser === s.user_id ? null : s.user_id);
-                            setSelectedUser(null);
-                          }}
-                          className="inline-flex"
-                          title="Voir les modifications de champs"
-                        >
-                          <Badge color="purple">
-                            {(s.event_counts.field_values_edited ?? 0) +
-                              (s.event_counts.field_regenerated ?? 0)}
-                          </Badge>
-                        </button>
-                      </td>
-                      <td className="px-4 py-3 text-center text-zinc-500">
-                        {formatMinutes(s.time_spent.total_minutes)}
-                      </td>
-                      <td className="px-4 py-3 text-center font-medium text-zinc-700">
-                        {s.total_events}
-                      </td>
-                    </tr>
-                  ))}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
           </div>
 
-          {/* Expanded user detail */}
-          {selectedUser && (
-            <UserDetail
-              userId={selectedUser}
-              label={userProfiles[selectedUser]?.email ?? selectedUser}
-              onClose={() => setSelectedUser(null)}
+          {/* Event history detail */}
+          {historyUser && (
+            <UserEventHistory
+              userId={historyUser}
+              label={userProfiles[historyUser]?.email ?? historyUser}
+              onClose={() => setHistoryUser(null)}
             />
           )}
 
