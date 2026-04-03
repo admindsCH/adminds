@@ -1,3 +1,10 @@
+## [0.7.1](https://github.com/admindsCH/adminds/compare/v0.7.0...v0.7.1) (2026-04-03)
+
+
+### Bug Fixes
+
+* rewrite the monitoring UI ([dd4a9c4](https://github.com/admindsCH/adminds/commit/dd4a9c41e7ce51999128512d906f37b88605a639))
+
 # [0.7.0](https://github.com/admindsCH/adminds/compare/v0.6.0...v0.7.0) (2026-04-03)
 
 
