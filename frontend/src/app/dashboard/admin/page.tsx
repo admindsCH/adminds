@@ -519,12 +519,12 @@ export default function AdminAnalyticsPage() {
                         {isExpanded && (
                           <tr className="bg-zinc-50/50">
                             <td colSpan={8} className="px-6 py-4">
-                              <div className="flex items-center gap-8">
-                                {/* Streak details */}
-                                <div className="flex items-center gap-5">
+                              {/* Row 1: Stats */}
+                              <div className="flex items-center gap-6">
+                                <div className="grid grid-cols-6 gap-4 flex-1">
                                   <div className="text-center">
                                     <p className="text-lg font-bold text-zinc-900">{s.current_streak}</p>
-                                    <p className="text-[10px] uppercase tracking-wide text-zinc-400">Streak actuel</p>
+                                    <p className="text-[10px] uppercase tracking-wide text-zinc-400">Streak</p>
                                   </div>
                                   <div className="text-center">
                                     <p className="text-lg font-bold text-zinc-900">{s.best_streak}</p>
@@ -534,47 +534,34 @@ export default function AdminAnalyticsPage() {
                                     <p className="text-lg font-bold text-zinc-900">{s.days_active_30}<span className="text-xs font-normal text-zinc-400">/30</span></p>
                                     <p className="text-[10px] uppercase tracking-wide text-zinc-400">Jours actifs</p>
                                   </div>
-                                </div>
-
-                                <div className="h-10 w-px bg-zinc-200" />
-
-                                {/* Time spent */}
-                                <div className="flex items-center gap-5">
                                   <div className="text-center">
                                     <p className="text-sm font-semibold text-zinc-700">{formatMinutes(s.time_spent.today_minutes)}</p>
                                     <p className="text-[10px] uppercase tracking-wide text-zinc-400">Aujourd&apos;hui</p>
                                   </div>
                                   <div className="text-center">
                                     <p className="text-sm font-semibold text-zinc-700">{formatMinutes(s.time_spent.week_minutes)}</p>
-                                    <p className="text-[10px] uppercase tracking-wide text-zinc-400">Cette semaine</p>
+                                    <p className="text-[10px] uppercase tracking-wide text-zinc-400">Semaine</p>
                                   </div>
                                   <div className="text-center">
                                     <p className="text-sm font-semibold text-zinc-700">{formatMinutes(s.time_spent.total_minutes)}</p>
                                     <p className="text-[10px] uppercase tracking-wide text-zinc-400">Total</p>
                                   </div>
                                 </div>
-
-                                <div className="h-10 w-px bg-zinc-200" />
-
-                                {/* Heatmap */}
-                                <div>
-                                  <Heatmap30 daily={s.daily_activity} />
-                                  <p className="mt-1 text-[10px] text-zinc-300">30 derniers jours</p>
-                                </div>
-
-                                {/* History button */}
-                                <div className="ml-auto">
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setHistoryUser(historyUser === s.user_id ? null : s.user_id);
-                                      setFieldChangesUser(null);
-                                    }}
-                                    className="rounded-md bg-zinc-100 px-3 py-1.5 text-xs font-medium text-zinc-600 hover:bg-zinc-200"
-                                  >
-                                    Voir historique
-                                  </button>
-                                </div>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setHistoryUser(historyUser === s.user_id ? null : s.user_id);
+                                    setFieldChangesUser(null);
+                                  }}
+                                  className="shrink-0 rounded-md bg-zinc-100 px-3 py-1.5 text-xs font-medium text-zinc-600 hover:bg-zinc-200"
+                                >
+                                  Voir historique
+                                </button>
+                              </div>
+                              {/* Row 2: Heatmap */}
+                              <div className="mt-3">
+                                <Heatmap30 daily={s.daily_activity} />
+                                <p className="mt-1 text-[10px] text-zinc-300">30 derniers jours</p>
                               </div>
                             </td>
                           </tr>
