@@ -158,13 +158,16 @@ export default function DashboardLayout({
   useEffect(() => {
     if (!user) return;
 
-    if (!visitTracked.current) {
+    if (!visitTracked.current && !window.location.pathname.startsWith("/dashboard/admin")) {
       visitTracked.current = true;
       trackEvent("page_visit", { page: window.location.pathname });
     }
 
     // Heartbeat: sends a ping every 60s while the tab is visible
     let interval: ReturnType<typeof setInterval> | null = null;
+
+    // Skip all tracking on admin pages
+    if (window.location.pathname.startsWith("/dashboard/admin")) return;
 
     function startHeartbeat() {
       if (interval) return;
