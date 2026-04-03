@@ -8,6 +8,7 @@ services:
       - .env
     volumes:
       - ./templates:/app/templates:ro
+      - /var/lib/adminds:/var/lib/adminds
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
       interval: 30s
