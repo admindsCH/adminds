@@ -1,3 +1,10 @@
+## [0.7.3](https://github.com/admindsCH/adminds/compare/v0.7.2...v0.7.3) (2026-04-03)
+
+
+### Bug Fixes
+
+* templates with only paragraph ([99c3f3a](https://github.com/admindsCH/adminds/commit/99c3f3a81518cdf1f159bd699a066459789cb57c))
+
 ## [0.7.2](https://github.com/admindsCH/adminds/compare/v0.7.1...v0.7.2) (2026-04-03)
 
 
