@@ -270,7 +270,8 @@ def _extract_paragraph_slots(doc: Document) -> list[RawSlot]:
             question_indices.append(i)
 
     if not question_indices:
-        return []
+        # No numbered questions — treat every non-empty paragraph as a slot
+        return _extract_all_paragraphs_as_slots(paragraphs)
 
     slots: list[RawSlot] = []
     for q_pos, q_idx in enumerate(question_indices):
@@ -305,6 +306,24 @@ def _extract_paragraph_slots(doc: Document) -> list[RawSlot]:
             )
         )
 
+    return slots
+
+
+def _extract_all_paragraphs_as_slots(paragraphs) -> list[RawSlot]:
+    """Last-resort fallback: treat every non-empty paragraph as a question."""
+    slots: list[RawSlot] = []
+    for i, para in enumerate(paragraphs):
+        text = para.text.strip()
+        if not text:
+            continue
+        slots.append(
+            RawSlot(
+                slot_type="paragraph",
+                position={"paragraph_index": i, "insert_after": i},
+                detected_field_type="text",
+                context=text,
+            )
+        )
     return slots
 
 
