@@ -1,3 +1,10 @@
+# [0.7.0](https://github.com/admindsCH/adminds/compare/v0.6.0...v0.7.0) (2026-04-03)
+
+
+### Features
+
+* make analytics DB path configurable via ANALYTICS_DB_PATH ([06454fa](https://github.com/admindsCH/adminds/commit/06454fa1d3a1dabe98e063a54c42c0afa5849d38))
+
 # [0.6.0](https://github.com/admindsCH/adminds/compare/v0.5.4...v0.6.0) (2026-04-02)
 
 
