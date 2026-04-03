@@ -1,3 +1,10 @@
+## [0.7.2](https://github.com/admindsCH/adminds/compare/v0.7.1...v0.7.2) (2026-04-03)
+
+
+### Bug Fixes
+
+* spacing columns ([8c1f150](https://github.com/admindsCH/adminds/commit/8c1f150a93d9c7857d663553c5972d8bdb30df5b))
+
 ## [0.7.1](https://github.com/admindsCH/adminds/compare/v0.7.0...v0.7.1) (2026-04-03)
 
 
