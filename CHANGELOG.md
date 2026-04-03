@@ -1,3 +1,10 @@
+## [0.7.4](https://github.com/admindsCH/adminds/compare/v0.7.3...v0.7.4) (2026-04-03)
+
+
+### Bug Fixes
+
+* mount analytics DB volume in docker container ([7bb1c41](https://github.com/admindsCH/adminds/commit/7bb1c4106b0b285892963516fea34eebdfa499f0))
+
 ## [0.7.3](https://github.com/admindsCH/adminds/compare/v0.7.2...v0.7.3) (2026-04-03)
 
 
