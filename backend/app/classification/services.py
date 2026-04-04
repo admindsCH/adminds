@@ -34,7 +34,9 @@ from app.services.azure_openai import ainvoke_throttled, get_model
 
 
 async def _classify_image_vision(
-    filename: str, file_bytes: bytes, doctor_name: str | None = None,
+    filename: str,
+    file_bytes: bytes,
+    doctor_name: str | None = None,
 ) -> ClassifiedDocument:
     """Classify an image file using GPT vision.
 
@@ -78,7 +80,8 @@ async def _classify_image_vision(
 
 
 async def classify_document(
-    file: UploadFile, doctor_name: str | None = None,
+    file: UploadFile,
+    doctor_name: str | None = None,
 ) -> ClassifiedDocument:
     """Classify a single file (category + summary + author).
 
@@ -111,7 +114,8 @@ async def classify_document(
 
 
 async def classify_documents(
-    files: list[UploadFile], doctor_name: str | None = None,
+    files: list[UploadFile],
+    doctor_name: str | None = None,
 ) -> list[ClassifiedDocument]:
     """Classify multiple uploaded files independently."""
     results: list[ClassifiedDocument] = []
@@ -136,7 +140,6 @@ async def classify_documents(
             )
 
     return results
-
 
 
 def get_dossier(dossier_id: str) -> DossierResponse:
@@ -221,22 +224,36 @@ def parse_dossier_stream(files: list[UploadFile]) -> StreamingResponse:
 
             # Save debug artifacts
             from app.classification.store import save_debug
+
             # a) Individual extracted texts per file
             for i, part in enumerate(_debug_texts):
                 save_debug(did, f"extracted_{i:02d}.txt", part)
             # b) Combined text
             save_debug(did, "combined_text.txt", combined_text)
             # c) Each rubrique as individual JSON
-            for rub_key in ["r01_historique", "r02_clinique", "r03_traitement",
-                            "r04_professionnel", "r05_capacite_travail",
-                            "r06_readaptation", "r07_freins_cognition", "r08_activites"]:
+            for rub_key in [
+                "r01_historique",
+                "r02_clinique",
+                "r03_traitement",
+                "r04_professionnel",
+                "r05_capacite_travail",
+                "r06_readaptation",
+                "r07_freins_cognition",
+                "r08_activites",
+            ]:
                 rub = getattr(dossier.rubriques, rub_key)
                 save_debug(did, f"rubrique_{rub_key}.json", rub.model_dump())
             # d) Patient info
             save_debug(did, "patient_info.json", dossier.patient_info.model_dump())
             logger.info(f"Debug artifacts saved for dossier {did}")
 
-            yield sse({"type": "complete", "dossier_id": did, "dossier": response.dossier.model_dump()})
+            yield sse(
+                {
+                    "type": "complete",
+                    "dossier_id": did,
+                    "dossier": response.dossier.model_dump(),
+                }
+            )
         except Exception as e:
             logger.exception("Failed to store dossier")
             yield sse({"type": "error", "message": str(e)})

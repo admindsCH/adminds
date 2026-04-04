@@ -22,7 +22,11 @@ async def upload_template(
     file: UploadFile = File(...),
 ) -> TemplateResponse:
     """Upload a template (.docx or .pdf). Auto-detects format, classifies, extracts schema."""
-    track(user.user_id, "template_uploaded", {"filename": file.filename or "template.docx"})
+    track(
+        user.user_id,
+        "template_uploaded",
+        {"filename": file.filename or "template.docxå"},
+    )
     return await services.upload_and_extract(
         user.user_id, await file.read(), file.filename or "template.docx"
     )

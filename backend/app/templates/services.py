@@ -1,15 +1,9 @@
-"""Template services — orchestrates upload, classification, extraction, and storage.
-
-Supports both .docx and .pdf templates:
-- DOCX: stored as-is, XML-based slot extraction
-- PDF:  stored as-is, AcroForm field extraction via PyMuPDF
-"""
-
 from __future__ import annotations
 
 import asyncio
 import re
 import unicodedata
+import uuid
 
 from fastapi import HTTPException
 from fastapi.responses import Response
@@ -28,10 +22,7 @@ from app.templates.template_classifier import classify_template
 
 
 def _slugify(text: str) -> str:
-    """Convert text to a URL/blob-safe slug.
-
-    "Rapport AI Fribourg" → "rapport-ai-fribourg"
-    """
+    """Convert text to a URL/blob-safe slug."""
     text = unicodedata.normalize("NFKD", text)
     text = text.encode("ascii", "ignore").decode("ascii")
     text = text.lower()
@@ -102,26 +93,16 @@ def update_schema(user_id: str, template_id: str, request: UpdateSchemaRequest) 
     return schema.model_dump()
 
 
-async def upload_and_extract(
-    user_id: str,
-    file_bytes: bytes,
-    filename: str,
-) -> TemplateResponse:
-    """Full upload pipeline: classify → store → extract schema.
+def _safe_int(val: str | int, default: int) -> int:
+    """Safely cast a value to int, returning *default* on failure."""
+    try:
+        return int(val)
+    except (ValueError, TypeError):
+        return default
 
-    1. Detect format (PDF or DOCX)
-    2. Classify the template with LLM (auto-name, category, canton, insurance)
-    3. Upload original file to blob storage
-    4. Extract schema (Pass 1) — XML for DOCX, AcroForm for PDF
 
-    Args:
-        user_id: Owner's Clerk user ID.
-        file_bytes: Raw uploaded file bytes (.docx or .pdf).
-        filename: Original filename.
-
-    Returns:
-        TemplateResponse with auto-detected metadata.
-    """
+def _detect_format(file_bytes: bytes) -> tuple[str, str, bool]:
+    """Validate magic bytes and return (template_format, ext, is_pdf)."""
     if not file_bytes:
         raise HTTPException(status_code=400, detail="Fichier vide")
     is_pdf = file_bytes[:4] == b"%PDF"
@@ -132,15 +113,17 @@ async def upload_and_extract(
         )
     template_format = "pdf" if is_pdf else "docx"
     ext = "pdf" if is_pdf else "docx"
+    return template_format, ext, is_pdf
 
-    # ── Step 1: Classify + extract raw slots in parallel ──
-    # Classification (LLM) and slot extraction (CPU) are independent,
-    # so we run them concurrently to cut ~30-50% of total time.
-    classify_bytes = file_bytes
+
+async def _classify_and_extract(
+    file_bytes: bytes, filename: str, is_pdf: bool
+) -> tuple[dict, list]:
+    """Run classification (LLM) and slot extraction (CPU) in parallel."""
 
     async def _classify():
         try:
-            return await classify_template(classify_bytes, is_pdf=is_pdf)
+            return await classify_template(file_bytes, is_pdf=is_pdf)
         except Exception as e:
             logger.error(f"Classification failed for '{filename}': {e}")
             return {
@@ -152,33 +135,30 @@ async def upload_and_extract(
                 "page_count": "1",
                 "estimated_minutes": "3",
                 "is_official": "false",
+                "classification_failed": True,
             }
 
     async def _extract():
-        # extract_raw_slots is sync/CPU, run in thread to not block event loop
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(None, extract_raw_slots, file_bytes)
 
-    metadata, raw_slots = await asyncio.gather(_classify(), _extract())
+    return await asyncio.gather(_classify(), _extract())
 
-    metadata["template_format"] = template_format
 
-    # ── Step 2: Build blob name as category/slug-name.ext ──
+def _store_blob(
+    user_id: str, metadata: dict, file_bytes: bytes, ext: str
+) -> tuple[str, str]:
+    """Slugify name, handle duplicates with UUID suffix, upload blob.
+
+    Returns (template_id, stored_filename).
+    """
     slug = _slugify(metadata["name"])
     category = metadata.get("category", "rapport-ai")
     stored_filename = f"{slug}.{ext}"
     template_id = f"{category}/{slug}"
 
-    logger.info(
-        f"Template '{metadata['name']}' → blob '{template_id}.{ext}', "
-        f"format={template_format}, category={category}, canton={metadata['canton']}"
-    )
-
-    # ── Step 3: Upload to blob storage ───────────────────
     if blob_storage.template_exists(user_id, template_id):
-        import time
-
-        suffix = str(int(time.time()))[-4:]
+        suffix = uuid.uuid4().hex[:8]
         template_id = f"{category}/{slug}-{suffix}"
         stored_filename = f"{slug}-{suffix}.{ext}"
         logger.info(f"Duplicate detected, using '{template_id}'")
@@ -191,24 +171,19 @@ async def upload_and_extract(
         metadata=metadata,
     )
 
-    # ── Step 4: Label slots + store schema ─────────────────
-    try:
-        await label_and_store_schema(
-            user_id, template_id, metadata["name"], template_format, raw_slots
-        )
-    except Exception as e:
-        logger.error(f"Schema extraction failed for '{template_id}': {e}")
-        # Roll back: remove the blob so we don't leave a broken template
-        try:
-            blob_storage.delete_template(user_id, template_id)
-            logger.info(f"Rolled back blob upload for '{template_id}'")
-        except Exception:
-            logger.warning(f"Failed to roll back blob for '{template_id}'")
-        raise HTTPException(
-            status_code=422,
-            detail=f"Impossible d'extraire le schéma du fichier '{filename}'. Vérifiez que le fichier est un .docx ou .pdf valide.",
-        )
+    logger.info(
+        f"Template '{metadata['name']}' → blob '{template_id}.{ext}', "
+        f"format={metadata['template_format']}, category={category}, "
+        f"canton={metadata.get('canton', 'all')}"
+    )
 
+    return template_id, stored_filename
+
+
+def _build_response(
+    template_id: str, metadata: dict, stored_filename: str, size: int
+) -> TemplateResponse:
+    """Build TemplateResponse from metadata."""
     return TemplateResponse(
         id=template_id,
         name=metadata["name"],
@@ -217,13 +192,45 @@ async def upload_and_extract(
         insurance_id=metadata.get("insurance_id", ""),
         insurance_name=metadata.get("insurance_name", ""),
         canton=metadata.get("canton", "all"),
-        estimated_minutes=int(metadata.get("estimated_minutes", "5")),
-        page_count=int(metadata.get("page_count", "1")),
-        is_official=metadata.get("is_official", "false").lower() == "true",
+        estimated_minutes=_safe_int(metadata.get("estimated_minutes", "5"), 5),
+        page_count=_safe_int(metadata.get("page_count", "1"), 1),
+        is_official=str(metadata.get("is_official", "false")).lower() == "true",
         has_schema=True,
         filename=stored_filename,
-        size=len(file_bytes),
+        size=size,
     )
+
+
+async def upload_and_extract(
+    user_id: str,
+    file_bytes: bytes,
+    filename: str,
+) -> TemplateResponse:
+    """Full upload pipeline: detect → classify+extract → store → schema."""
+    template_format, ext, is_pdf = _detect_format(file_bytes)
+    metadata, raw_slots = await _classify_and_extract(file_bytes, filename, is_pdf)
+    metadata["template_format"] = template_format
+
+    template_id, stored_filename = _store_blob(user_id, metadata, file_bytes, ext)
+
+    try:
+        await label_and_store_schema(
+            user_id, template_id, metadata["name"], template_format, raw_slots
+        )
+    except Exception as e:
+        logger.error(f"Schema extraction failed for '{template_id}': {e}")
+        try:
+            blob_storage.delete_template(user_id, template_id)
+            logger.info(f"Rolled back blob upload for '{template_id}'")
+        except Exception:
+            logger.warning(f"Failed to roll back blob for '{template_id}'")
+        raise HTTPException(
+            status_code=422,
+            detail=f"Impossible d'extraire le schéma du fichier '{filename}'. "
+            f"Vérifiez que le fichier est un .docx ou .pdf valide.",
+        )
+
+    return _build_response(template_id, metadata, stored_filename, len(file_bytes))
 
 
 def download_template(user_id: str, template_id: str) -> Response:

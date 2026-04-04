@@ -86,7 +86,10 @@ async def extract_dossier(
     Returns:
         A fully populated PatientDossier with raw_content set.
     """
-    async def tracked_rubrique(key: str, prompt: str, model_cls: type[BaseModel]) -> tuple[str, BaseModel]:
+
+    async def tracked_rubrique(
+        key: str, prompt: str, model_cls: type[BaseModel]
+    ) -> tuple[str, BaseModel]:
         result = await _extract_rubrique(key, prompt, model_cls, combined_text)
         if on_step_done:
             await on_step_done(key)

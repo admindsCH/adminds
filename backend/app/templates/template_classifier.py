@@ -125,6 +125,7 @@ def _extract_pdf_text(pdf_bytes: bytes, max_chars: int = 3000) -> str:
 def _extract_docx_text(docx_bytes: bytes, max_chars: int = 3000) -> str:
     """Extract text from a .docx file."""
     from app.templates.docx_compat import normalize_docx_bytes
+
     doc = Document(io.BytesIO(normalize_docx_bytes(docx_bytes)))
     parts: list[str] = []
     total = 0

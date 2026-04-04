@@ -13,6 +13,7 @@ Usage:
     # Without proxy (will be slow, ~24 profiles per 3-min cycle):
     python3 leads/scrape_fmh.py
 """
+
 import asyncio
 import json
 import os
@@ -32,9 +33,9 @@ OUTPUT_FILE = os.path.join(SCRIPT_DIR, "psychiatrists_geneva.xlsx")
 CACHE_FILE = os.path.join(SCRIPT_DIR, "details_cache.json")
 
 # Rate limiting
-DETAIL_DELAY = 4.0       # seconds between detail requests
-BATCH_SIZE = 20          # profiles per session before rotating
-JITTER = 1.0             # random +/- seconds
+DETAIL_DELAY = 4.0  # seconds between detail requests
+BATCH_SIZE = 20  # profiles per session before rotating
+JITTER = 1.0  # random +/- seconds
 
 
 def load_cache() -> dict:
@@ -64,12 +65,15 @@ def existing_row_count() -> int:
 
 async def api_fetch(page, url: str, token: str) -> dict | None:
     try:
-        resp_text = await page.evaluate("""async ([url, token]) => {
+        resp_text = await page.evaluate(
+            """async ([url, token]) => {
             const resp = await fetch(url, {
                 headers: { 'docfmh': token, 'Accept': 'application/json' }
             });
             return JSON.stringify({status: resp.status, body: await resp.text()});
-        }""", [url, token])
+        }""",
+            [url, token],
+        )
         parsed = json.loads(resp_text)
         if parsed["status"] not in (200,):
             return None
@@ -141,15 +145,30 @@ def export_to_excel(doctors: list[dict], details: dict[str, dict]):
     ws.title = "Psychiatres Genève"
 
     headers = [
-        "N°", "Titre", "Prénom", "Nom", "Genre",
-        "Lieu de travail", "Lieu de travail 2", "Adresse",
-        "Code postal", "Ville", "Canton",
-        "EAN/GLN", "Téléphone", "Fax", "Email", "Site web",
-        "Langues", "Certifications",
+        "N°",
+        "Titre",
+        "Prénom",
+        "Nom",
+        "Genre",
+        "Lieu de travail",
+        "Lieu de travail 2",
+        "Adresse",
+        "Code postal",
+        "Ville",
+        "Canton",
+        "EAN/GLN",
+        "Téléphone",
+        "Fax",
+        "Email",
+        "Site web",
+        "Langues",
+        "Certifications",
     ]
 
     header_font = Font(bold=True, color="FFFFFF", size=11)
-    header_fill = PatternFill(start_color="6849A0", end_color="6849A0", fill_type="solid")
+    header_fill = PatternFill(
+        start_color="6849A0", end_color="6849A0", fill_type="solid"
+    )
     thin_border = Border(
         left=Side(style="thin", color="D9D9D9"),
         right=Side(style="thin", color="D9D9D9"),
@@ -181,18 +200,43 @@ def export_to_excel(doctors: list[dict], details: dict[str, dict]):
 
         langs_list = detail_data.get("LANGUAGES", [])
         if isinstance(langs_list, list):
-            languages = ", ".join(l.get("LANGUAGE", "") if isinstance(l, dict) else str(l) for l in langs_list)
+            languages = ", ".join(
+                l.get("LANGUAGE", "") if isinstance(l, dict) else str(l)
+                for l in langs_list
+            )
         certs_list = detail_data.get("CERTS", [])
         if isinstance(certs_list, list):
-            certs = ", ".join(c.get("CERT", "") if isinstance(c, dict) else str(c) for c in certs_list)
+            certs = ", ".join(
+                c.get("CERT", "") if isinstance(c, dict) else str(c) for c in certs_list
+            )
 
-        gender = "F" if doc.get("SALUTATION") == "F" else "M" if doc.get("SALUTATION") == "H" else ""
+        gender = (
+            "F"
+            if doc.get("SALUTATION") == "F"
+            else "M"
+            if doc.get("SALUTATION") == "H"
+            else ""
+        )
 
         row_data = [
-            i, doc.get("TITLE", ""), doc.get("FIRSTNAME", ""), doc.get("NAME", ""), gender,
-            doc.get("AD_NAME", ""), doc.get("AD_NAME_2", ""), doc.get("AD_ADDRESS", ""),
-            doc.get("AD_POST_CODE", ""), doc.get("AD_CITY", ""), doc.get("CANTON_CODE", ""),
-            doc.get("EAN", ""), phone, fax, email, website, languages, certs,
+            i,
+            doc.get("TITLE", ""),
+            doc.get("FIRSTNAME", ""),
+            doc.get("NAME", ""),
+            gender,
+            doc.get("AD_NAME", ""),
+            doc.get("AD_NAME_2", ""),
+            doc.get("AD_ADDRESS", ""),
+            doc.get("AD_POST_CODE", ""),
+            doc.get("AD_CITY", ""),
+            doc.get("CANTON_CODE", ""),
+            doc.get("EAN", ""),
+            phone,
+            fax,
+            email,
+            website,
+            languages,
+            certs,
         ]
 
         for col, value in enumerate(row_data, 1):
@@ -202,7 +246,9 @@ def export_to_excel(doctors: list[dict], details: dict[str, dict]):
                 cell.alignment = Alignment(horizontal="center")
 
     for col in ws.columns:
-        max_length = max((len(str(cell.value)) for cell in col if cell.value), default=0)
+        max_length = max(
+            (len(str(cell.value)) for cell in col if cell.value), default=0
+        )
         ws.column_dimensions[col[0].column_letter].width = min(max_length + 2, 40)
 
     ws.freeze_panes = "A2"
@@ -259,14 +305,18 @@ async def main():
             await asyncio.sleep(0.3)
 
         await browser.close()
-        print(f"   Done: {len(doctors)} records, {len({d['LINK_ID'] for d in doctors})} unique")
+        print(
+            f"   Done: {len(doctors)} records, {len({d['LINK_ID'] for d in doctors})} unique"
+        )
 
         # --- Step 2: Fetch detail profiles in batches ---
         print(f"\n[2/3] Fetching detail profiles...")
         details = load_cache()
         unique_ids = list({doc["LINK_ID"] for doc in doctors})
         missing = [lid for lid in unique_ids if lid not in details]
-        print(f"   {len(unique_ids)} unique, {len(details)} cached, {len(missing)} remaining")
+        print(
+            f"   {len(unique_ids)} unique, {len(details)} cached, {len(missing)} remaining"
+        )
 
         if missing:
             batch_num = 0
@@ -275,8 +325,10 @@ async def main():
 
             while i < len(missing):
                 batch_num += 1
-                batch = missing[i:i + BATCH_SIZE]
-                print(f"\n   --- Batch {batch_num} ({len(batch)} profiles, {i}/{len(missing)} done) ---")
+                batch = missing[i : i + BATCH_SIZE]
+                print(
+                    f"\n   --- Batch {batch_num} ({len(batch)} profiles, {i}/{len(missing)} done) ---"
+                )
 
                 # Get a fresh session for each batch
                 try:
@@ -301,7 +353,7 @@ async def main():
                     cached_total = len(details)
                     rate = (cached_total / elapsed * 60) if elapsed > 30 else 0
                     print(
-                        f"   [{i+j+1}/{len(missing)}] {link_id[:12]}... "
+                        f"   [{i + j + 1}/{len(missing)}] {link_id[:12]}... "
                         f"({cached_total}/{len(unique_ids)} cached, ~{rate:.0f}/min)",
                         flush=True,
                     )
@@ -334,12 +386,24 @@ async def main():
                 # Brief pause between batches
                 if i < len(missing):
                     pause = 5 if use_bright else 60
-                    print(f"   Batch done ({successes}/{len(batch)}). Pausing {pause}s...")
+                    print(
+                        f"   Batch done ({successes}/{len(batch)}). Pausing {pause}s..."
+                    )
                     await asyncio.sleep(pause)
 
         # Stats
-        with_phone = sum(1 for d in details.values() for a in d.get("DATA", {}).get("ADDRESSES", []) if a.get("PHONE_LINK"))
-        with_email = sum(1 for d in details.values() for a in d.get("DATA", {}).get("ADDRESSES", []) if a.get("EMAIL_LINK") or a.get("EMAIL"))
+        with_phone = sum(
+            1
+            for d in details.values()
+            for a in d.get("DATA", {}).get("ADDRESSES", [])
+            if a.get("PHONE_LINK")
+        )
+        with_email = sum(
+            1
+            for d in details.values()
+            for a in d.get("DATA", {}).get("ADDRESSES", [])
+            if a.get("EMAIL_LINK") or a.get("EMAIL")
+        )
         print(f"\n   Profiles: {len(details)}/{len(unique_ids)}")
         print(f"   With phone: {with_phone}")
         print(f"   With email: {with_email}")
@@ -348,11 +412,13 @@ async def main():
         print(f"\n[3/3] Exporting to Excel...")
         export_to_excel(doctors, details)
 
-        print(f"\n{'='*50}")
-        print(f"DONE — {len(doctors)} records, {len(details)}/{len(unique_ids)} profiles fetched")
+        print(f"\n{'=' * 50}")
+        print(
+            f"DONE — {len(doctors)} records, {len(details)}/{len(unique_ids)} profiles fetched"
+        )
         print(f"Phone: {with_phone} | Email: {with_email}")
         print(f"Cache: {CACHE_FILE}")
-        print(f"{'='*50}")
+        print(f"{'=' * 50}")
 
 
 asyncio.run(main())

@@ -22,6 +22,7 @@ def _normalize_choice(value: str) -> str:
     value = value.encode("ascii", "ignore").decode("ascii")
     return value
 
+
 W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
 NS = {"w": "http://schemas.openxmlformats.org/wordprocessingml/2006/main"}
 
@@ -67,7 +68,12 @@ def fill_template(
             paragraph_fields.append((field, str(value)))
 
     # Fill paragraphs last, in reverse order so indices stay valid
-    paragraph_fields.sort(key=lambda x: x[0].position.get("insert_after", x[0].position.get("paragraph_index", 0)), reverse=True)
+    paragraph_fields.sort(
+        key=lambda x: x[0].position.get(
+            "insert_after", x[0].position.get("paragraph_index", 0)
+        ),
+        reverse=True,
+    )
     for field, value in paragraph_fields:
         _fill_paragraph(doc, field, value)
 
@@ -283,12 +289,16 @@ def _add_text_to_cell(
     """Insert a text run into a table cell, accounting for merged cells (gridSpan)."""
     rows = table.findall("w:tr", NS)
     if row >= len(rows):
-        logger.warning(f"_add_text_to_cell: row {row} out of bounds (table has {len(rows)} rows)")
+        logger.warning(
+            f"_add_text_to_cell: row {row} out of bounds (table has {len(rows)} rows)"
+        )
         return
 
     cell = _resolve_cell_by_visual_col(rows[row], col)
     if cell is None:
-        logger.warning(f"_add_text_to_cell: visual col {col} not found in row {row}, text='{text[:50]}'")
+        logger.warning(
+            f"_add_text_to_cell: visual col {col} not found in row {row}, text='{text[:50]}'"
+        )
         return
     p = cell.find("w:p", NS)
     if p is None:
@@ -335,7 +345,9 @@ def _fill_paragraph(
     """Insert answer text after the last sub-item of the question."""
     # insert_after points to the last paragraph belonging to this question
     # (after sub-items), falling back to the question paragraph itself.
-    insert_idx = field.position.get("insert_after", field.position.get("paragraph_index"))
+    insert_idx = field.position.get(
+        "insert_after", field.position.get("paragraph_index")
+    )
     if insert_idx is None or insert_idx >= len(doc.paragraphs):
         return
 

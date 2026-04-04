@@ -15,12 +15,15 @@ from loguru import logger
 
 # ── Database path ─────────────────────────────────────────
 
+
 def _resolve_db_path() -> Path:
     """Use ANALYTICS_DB_PATH env var if set, otherwise fall back to backend/data/."""
     from app.config import settings
+
     if settings.analytics_db_path:
         return Path(settings.analytics_db_path)
     return Path(__file__).resolve().parent.parent.parent / "data" / "analytics.db"
+
 
 _DB_PATH: Path | None = None  # resolved lazily
 
@@ -253,7 +256,13 @@ def get_per_user_summary() -> list[dict]:
         ).fetchall()
         active_dates = [r[0] for r in active_dates_rows]
         current_streak, best_streak = _compute_streaks(active_dates)
-        days_active_30 = len([d for d in active_dates if date.fromisoformat(d) >= date.today() - timedelta(days=30)])
+        days_active_30 = len(
+            [
+                d
+                for d in active_dates
+                if date.fromisoformat(d) >= date.today() - timedelta(days=30)
+            ]
+        )
 
         # Time spent
         time_spent = _compute_time_spent_minutes(user_id, conn)

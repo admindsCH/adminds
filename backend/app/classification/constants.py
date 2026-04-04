@@ -1,7 +1,17 @@
 from __future__ import annotations
 
 # Accepted upload file extensions.
-ALLOWED_EXTENSIONS = {".pdf", ".docx", ".doc", ".jpg", ".jpeg", ".png", ".tiff", ".bmp", ".heic"}
+ALLOWED_EXTENSIONS = {
+    ".pdf",
+    ".docx",
+    ".doc",
+    ".jpg",
+    ".jpeg",
+    ".png",
+    ".tiff",
+    ".bmp",
+    ".heic",
+}
 
 
 # --- Classification system prompt (Step 2: per-file labeling) ---

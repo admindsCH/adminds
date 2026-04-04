@@ -140,11 +140,21 @@ class UpdateSchemaRequest(BaseModel):
 class TemplateClassification(BaseModel):
     """Structured output from the template classifier LLM call."""
 
-    name: str = Field(description="Nom court et clair du formulaire en français (ex: 'Rapport AI Fribourg', 'Certificat médical SUVA'). Max 50 caractères.")
-    description: str = Field(description="Description d'une ligne expliquant le but du formulaire. Max 100 caractères.")
-    category: str = Field(description="Une parmi: 'rapport-ai' (assurance invalidité), 'rapport-medical' (rapport médical initial ou de suivi), 'rapport-assurance' (assurance privée), 'rapport-perte-gain' (attestation perte de gain).")
-    canton: str = Field(description="Canton cible: 'fribourg', 'geneve', ou 'all' si non spécifique à un canton.")
-    insurance: str = Field(description="Nom de l'assurance si identifiable (ex: 'SUVA', 'CSS', 'AI fédérale'), sinon chaîne vide.")
+    name: str = Field(
+        description="Nom court et clair du formulaire en français (ex: 'Rapport AI Fribourg', 'Certificat médical SUVA'). Max 50 caractères."
+    )
+    description: str = Field(
+        description="Description d'une ligne expliquant le but du formulaire. Max 100 caractères."
+    )
+    category: str = Field(
+        description="Une parmi: 'rapport-ai' (assurance invalidité), 'rapport-medical' (rapport médical initial ou de suivi), 'rapport-assurance' (assurance privée), 'rapport-perte-gain' (attestation perte de gain)."
+    )
+    canton: str = Field(
+        description="Canton cible: 'fribourg', 'geneve', ou 'all' si non spécifique à un canton."
+    )
+    insurance: str = Field(
+        description="Nom de l'assurance si identifiable (ex: 'SUVA', 'CSS', 'AI fédérale'), sinon chaîne vide."
+    )
     page_count: int = Field(description="Nombre estimé de pages du formulaire rempli.")
 
     @field_validator("name")

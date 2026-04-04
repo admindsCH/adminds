@@ -169,7 +169,7 @@ def list_templates(user_id: str) -> list[TemplateResponse]:
     templates: list[TemplateResponse] = []
     for blob in container.list_blobs(name_starts_with=prefix, include=["metadata"]):
         # Strip user prefix to get the external template_id
-        external_id = blob.name[len(prefix):]
+        external_id = blob.name[len(prefix) :]
         meta = _desanitize_metadata(blob.metadata or {})
         created_at = ""
         if blob.last_modified:
@@ -204,7 +204,9 @@ def get_template_metadata(user_id: str, template_id: str) -> dict[str, str]:
     return _desanitize_metadata(props.metadata or {})
 
 
-def update_template_metadata(user_id: str, template_id: str, metadata: dict[str, str]) -> None:
+def update_template_metadata(
+    user_id: str, template_id: str, metadata: dict[str, str]
+) -> None:
     """Update metadata on an existing template blob."""
     container = _get_container(TEMPLATES_CONTAINER)
     blob = container.get_blob_client(_blob_key(user_id, template_id))
