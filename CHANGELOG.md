@@ -1,3 +1,10 @@
+## [0.8.2](https://github.com/admindsCH/adminds/compare/v0.8.1...v0.8.2) (2026-04-05)
+
+
+### Bug Fixes
+
+* fix ([9e66880](https://github.com/admindsCH/adminds/commit/9e66880e9c71455367336cdbf9ddd70ab9528a1b))
+
 ## [0.8.1](https://github.com/admindsCH/adminds/compare/v0.8.0...v0.8.1) (2026-04-05)
 
 
