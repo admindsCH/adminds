@@ -49,6 +49,14 @@ function TrashIcon({ className }: { className?: string }) {
   );
 }
 
+function XCloseIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
+    </svg>
+  );
+}
+
 function SpinnerIcon({ className }: { className?: string }) {
   return (
     <div className={clsx("animate-spin rounded-full border-2 border-current border-t-transparent", className ?? "h-4 w-4")} />
@@ -362,7 +370,8 @@ export function StepSelectReports({
 }: StepSelectReportsProps) {
   const [templates, setTemplates] = useState<TemplateResponse[]>([]);
   const [loading, setLoading] = useState(true);
-  const [uploading, setUploading] = useState(false);
+  const [uploadingCount, setUploadingCount] = useState(0);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [selectedInsurance, setSelectedInsurance] = useState<string | "all">("all");
   const [previewTemplate, setPreviewTemplate] = useState<TemplateResponse | null>(null);
@@ -425,21 +434,38 @@ export function StepSelectReports({
 
   const handleUpload = useCallback(async (files: FileList | null) => {
     if (!files || files.length === 0) return;
-    const file = files[0];
-    setUploading(true);
+    setUploadError(null);
+    const fileArray = Array.from(files);
+    setUploadingCount(fileArray.length);
 
-    try {
-      const result = await api.uploadTemplate(file);
-      setTemplates((prev) => [...prev, result]);
-      // Auto-select the uploaded template and reset filters so it's visible
-      onSelectedTemplatesChange((prev) => [...prev, result]);
-      setSelectedCategory("all");
-      setSelectedInsurance("all");
-    } catch (e) {
-      console.error("Upload failed:", e);
-    } finally {
-      setUploading(false);
+    // Reset filters so uploaded templates are visible
+    setSelectedCategory("all");
+    setSelectedInsurance("all");
+
+    const results = await Promise.allSettled(
+      fileArray.map((file) => api.uploadTemplate(file))
+    );
+
+    const succeeded: TemplateResponse[] = [];
+    const failed: string[] = [];
+    for (let i = 0; i < results.length; i++) {
+      const r = results[i];
+      if (r.status === "fulfilled") {
+        succeeded.push(r.value);
+      } else {
+        failed.push(fileArray[i].name);
+      }
     }
+
+    if (succeeded.length > 0) {
+      setTemplates((prev) => [...prev, ...succeeded]);
+      onSelectedTemplatesChange((prev) => [...prev, ...succeeded]);
+    }
+    if (failed.length > 0) {
+      setUploadError(`Échec de l'import : ${failed.join(", ")}`);
+    }
+
+    setUploadingCount(0);
   }, [onSelectedTemplatesChange]);
 
   const handleRename = useCallback(async (templateId: string, newName: string) => {
@@ -532,20 +558,22 @@ export function StepSelectReports({
         <button
           type="button"
           onClick={() => fileRef.current?.click()}
-          disabled={uploading}
+          disabled={uploadingCount > 0}
           className={clsx(
             "flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition-all",
-            uploading
+            uploadingCount > 0
               ? "bg-zinc-200 text-zinc-400 cursor-wait"
               : "bg-indigo-600 text-white shadow-sm hover:bg-indigo-700 hover:shadow-md"
           )}
         >
-          {uploading ? (
+          {uploadingCount > 0 ? (
             <SpinnerIcon className="h-4 w-4" />
           ) : (
             <UploadIcon className="h-4 w-4" />
           )}
-          {uploading ? "Import en cours..." : "Importer un modèle"}
+          {uploadingCount > 0
+            ? `Import en cours (${uploadingCount})...`
+            : "Importer des modèles"}
         </button>
       </div>
 
@@ -553,6 +581,7 @@ export function StepSelectReports({
       <input
         ref={fileRef}
         type="file"
+        multiple
         className="hidden"
         accept=".docx,.dotx,.pdf"
         onChange={(e) => {
@@ -560,6 +589,20 @@ export function StepSelectReports({
           e.target.value = "";
         }}
       />
+
+      {/* Upload error */}
+      {uploadError && (
+        <div className="mb-4 flex items-center justify-between rounded-lg border border-red-200 bg-red-50 px-4 py-3">
+          <p className="text-sm text-red-600">{uploadError}</p>
+          <button
+            type="button"
+            onClick={() => setUploadError(null)}
+            className="ml-3 shrink-0 rounded p-1 text-red-400 hover:bg-red-100 hover:text-red-600"
+          >
+            <XCloseIcon className="h-4 w-4" />
+          </button>
+        </div>
+      )}
 
       {/* Loading state */}
       {loading && (
