@@ -109,9 +109,7 @@ def _extract_pdf_fields(pdf_bytes: bytes) -> list[RawSlot]:
 
         # Detect checkbox pairs: EXACTLY two checkboxes at the same Y (±3px)
         paired: set[str] = set()
-        checkbox_widgets = [
-            (w, n) for w, n in page_widgets if w.field_type == 2
-        ]
+        checkbox_widgets = [(w, n) for w, n in page_widgets if w.field_type == 2]
         # Group checkboxes by Y coordinate (±3px tolerance)
         y_groups: dict[float, list[tuple[fitz.Widget, str]]] = {}
         for w, n in checkbox_widgets:
@@ -773,11 +771,44 @@ def _get_table_context_for_ff(element: etree._Element) -> str:
         if row_cells:
             row_label = _get_cell_text(row_cells[0]).strip()
 
-    # Column header: text from the same column in the first row
+    # Column header: text from the same column in the first row.
+    # If the table has only 1 row, look at the preceding table for headers.
     col_header = ""
     rows = tbl.findall(f"{W}tr")
-    if rows:
-        header_cells = rows[0].findall(f"{W}tc")
+    header_row = None
+    if len(rows) > 1:
+        header_row = rows[0]
+    elif len(rows) == 1:
+        # Single-row table: walk back through preceding sibling tables
+        # to find a header row (same column count, no form fields)
+        my_cells = rows[0].findall(f"{W}tc")
+        prev = tbl.getprevious()
+        while prev is not None:
+            if prev.tag == f"{W}tbl":
+                prev_rows = prev.findall(f"{W}tr")
+                if prev_rows:
+                    candidate = prev_rows[0]
+                    candidate_cells = candidate.findall(f"{W}tc")
+                    has_ff = bool(candidate.findall(f".//{W}ffData"))
+                    if len(candidate_cells) == len(my_cells) and not has_ff:
+                        header_row = candidate
+                        break
+                    # Same-column table with form fields = sibling data row, keep looking
+                    if len(candidate_cells) == len(my_cells):
+                        prev = prev.getprevious()
+                        continue
+                    # Different column count = different section, stop
+                    break
+            elif prev.tag == f"{W}p":
+                # Paragraph between tables — could be a section break
+                text = _get_paragraph_text(prev).strip()
+                if len(text) > 80:
+                    break  # Long paragraph = different section
+                prev = prev.getprevious()
+                continue
+            prev = prev.getprevious()
+    if header_row is not None:
+        header_cells = header_row.findall(f"{W}tc")
         if col_idx < len(header_cells):
             col_header = _get_cell_text(header_cells[col_idx]).strip()
 

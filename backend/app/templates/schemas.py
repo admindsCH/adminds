@@ -149,8 +149,13 @@ class TemplateClassification(BaseModel):
     category: str = Field(
         description="Une parmi: 'rapport-ai' (assurance invalidité), 'rapport-medical' (rapport médical initial ou de suivi), 'rapport-assurance' (assurance privée), 'rapport-perte-gain' (attestation perte de gain)."
     )
-    canton: str = Field(
-        description="Canton cible: 'fribourg', 'geneve', ou 'all' si non spécifique à un canton."
+    canton: Literal[
+        "fribourg", "geneve", "vaud", "neuchatel", "valais", "berne", "zurich", "all"
+    ] = Field(
+        default="all",
+        description="Canton cible du formulaire. Identifie-le depuis l'en-tête, "
+        "l'adresse de l'office AI, ou les références cantonales. "
+        "Si non spécifique à un canton: 'all'.",
     )
     insurance: str = Field(
         description="Nom de l'assurance si identifiable (ex: 'SUVA', 'CSS', 'AI fédérale'), sinon chaîne vide."

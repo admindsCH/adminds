@@ -40,7 +40,14 @@ Tu es un expert en formulaires médicaux suisses pour les assurances sociales \
 (AI, LAA, LAMal, LPP, assurance militaire).
 
 On te donne le contenu textuel d'un formulaire/rapport médical vide (template). \
-Analyse-le et extrais ses métadonnées."""
+Analyse-le et extrais ses métadonnées.
+
+CANTON: identifie le canton cible depuis ces indices:
+- En-tête: "Office AI du canton de Fribourg", "AI Berne", "AI Neuchâtel"
+- Adresses postales et NPA (ex: 1700=Fribourg, 1200=Genève, 2000=Neuchâtel, \
+  3000=Berne, 1000=Vaud/Lausanne, 1950=Valais/Sion, 8000=Zurich)
+- Références légales cantonales ou logos cantonaux
+- Si le formulaire est générique (SUVA, assurance privée) sans canton: 'all'"""
 
 
 async def classify_template(
@@ -84,11 +91,13 @@ async def classify_template(
             insurance_id = known_id
             break
 
+    canton = result.canton.lower().strip()
+
     metadata = {
         "name": result.name,
         "description": result.description,
         "category": result.category,
-        "canton": result.canton,
+        "canton": canton,
         "insurance_id": insurance_id,
         "insurance_name": result.insurance,
         "page_count": str(result.page_count),
