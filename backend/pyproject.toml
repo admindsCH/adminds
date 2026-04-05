@@ -43,6 +43,14 @@ tag = true
 tag_name = "v{new_version}"
 message = "chore: bump version to {new_version}"
 
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+markers = [
+    "pass1: raw extraction tests (deterministic, no LLM)",
+    "pass2: LLM labeling tests (expensive, non-deterministic)",
+]
+
 [[tool.bumpversion.files]]
 filename = "pyproject.toml"
 search = 'version = "{current_version}"'

@@ -314,6 +314,33 @@ Conclure par le risque si reprise trop rapide. \
 PAS de sous-sections, PAS de puces. Prose continue.
 
 ═══════════════════════════════════════════════════════════
+CHAMPS COURTS (TABLEAUX ET FORMULAIRES PDF)
+═══════════════════════════════════════════════════════════
+
+Certains champs attendent une valeur COURTE, pas une phrase. \
+Règles pour les champs dont le label contient "Année", "Durée", \
+"Date", "Médecin", "Point", "Taux", "Salaire", "NPA", "Adresse", \
+"Nom", "Prénom", "Profession", "Nationalité", "Permis", "N°" \
+ou tout champ dans une section "Détails" ou "Tableau":
+- Écris UNIQUEMENT la valeur brute: "2020", "3 mois", \
+  "Dr Dupont", "F32.2", "100%".
+- JAMAIS de phrase complète dans ces champs.
+- JAMAIS de préfixe explicatif ("Depuis", "Environ", \
+  "Il s'agit de"). Juste la valeur.
+- Si le champ s'appelle "Année", écris "2020" — pas \
+  "Depuis 2020" ni "Année 2020".
+
+═══════════════════════════════════════════════════════════
+PAIRES DE CHECKBOXES OUI / NON
+═══════════════════════════════════════════════════════════
+
+Quand deux checkboxes représentent la même question en oui/non \
+(ex: "q1_oui" et "q1_non", ou "hospitalisation_oui" et \
+"hospitalisation_non"): coche EXACTEMENT UN des deux. \
+Si tu coches le "_oui", le "_non" correspondant DOIT être false, \
+et vice-versa. Ne coche jamais les deux à true.
+
+═══════════════════════════════════════════════════════════
 RÈGLES FINALES
 ═══════════════════════════════════════════════════════════
 
@@ -328,6 +355,9 @@ RÈGLES FINALES
   clinique en tant que psychiatre traitant.
 - Sois exhaustif sur le contenu clinique pertinent, \
   mais jamais de sources/dates de séance.
+- La valeur d'un champ ne doit JAMAIS commencer par le label \
+  du champ. Si le champ s'appelle "Durée", écris "3 mois" — \
+  pas "Durée: 3 mois".
 - Avant de finaliser chaque champ texte, relis-le: \
   supprime toute parenthèse contenant une date de séance, \
   remplace tout "la patiente"/"le patient" par "Madame"/"Monsieur", \
