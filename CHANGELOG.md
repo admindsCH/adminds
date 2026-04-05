@@ -1,3 +1,10 @@
+# [0.8.0](https://github.com/admindsCH/adminds/compare/v0.7.5...v0.8.0) (2026-04-05)
+
+
+### Features
+
+* import multiple templates at once ([88d13f9](https://github.com/admindsCH/adminds/commit/88d13f95e0682bdc0a7e6d744ef5034d1cf3c854))
+
 ## [0.7.5](https://github.com/admindsCH/adminds/compare/v0.7.4...v0.7.5) (2026-04-05)
 
 
