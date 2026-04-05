@@ -1,3 +1,10 @@
+## [0.8.3](https://github.com/admindsCH/adminds/compare/v0.8.2...v0.8.3) (2026-04-05)
+
+
+### Bug Fixes
+
+* look header row for arrays for context ([093c733](https://github.com/admindsCH/adminds/commit/093c733aaee33980814536f2e964bc0c350c4152))
+
 ## [0.8.2](https://github.com/admindsCH/adminds/compare/v0.8.1...v0.8.2) (2026-04-05)
 
 
