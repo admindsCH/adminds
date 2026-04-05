@@ -1,7 +1,7 @@
 """Compatibility helper for opening Word files with python-docx.
 
-Handles .dotm / .docm files (macro-enabled templates/documents) that
-python-docx rejects because their OPC content type differs from a
+Handles .dotx / .dotm / .docm files (templates/macro-enabled documents)
+that python-docx rejects because their OPC content type differs from a
 standard .docx.  We rewrite [Content_Types].xml inside the ZIP so
 python-docx sees the expected content type.
 """
@@ -16,6 +16,7 @@ import zipfile
 _COMPAT_MAP: dict[bytes, bytes] = {
     b"application/vnd.ms-word.template.macroEnabledTemplate.main+xml": b"application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml",
     b"application/vnd.ms-word.document.macroEnabled.main+xml": b"application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml",
+    b"application/vnd.openxmlformats-officedocument.wordprocessingml.template.main+xml": b"application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml",
 }
 
 

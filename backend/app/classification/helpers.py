@@ -12,9 +12,12 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from liteparse import LiteParse
 from loguru import logger
 
+from app.templates.docx_compat import normalize_docx_bytes
+
 _SUPPORTED_EXTENSIONS = {
     ".pdf",
     ".docx",
+    ".dotx",
     ".doc",
     ".jpg",
     ".jpeg",
@@ -126,7 +129,7 @@ def _extract_text_docx(file_bytes: bytes) -> str:
 
     Reads all paragraphs and table cells, preserving document order.
     """
-    doc = Document(io.BytesIO(file_bytes))
+    doc = Document(io.BytesIO(normalize_docx_bytes(file_bytes)))
     parts: list[str] = []
 
     for para in doc.paragraphs:
@@ -163,7 +166,7 @@ def extract_text(filename: str, file_bytes: bytes) -> str:
         return f"[Fichier non supporté: {filename}]"
 
     # .docx: use python-docx directly (faster, more reliable)
-    if ext == ".docx":
+    if ext in {".docx", ".dotx"}:
         logger.info(f"Extracting text from '{filename}' via python-docx...")
         try:
             text = _extract_text_docx(file_bytes)

@@ -431,12 +431,16 @@ export function StepSelectReports({
     try {
       const result = await api.uploadTemplate(file);
       setTemplates((prev) => [...prev, result]);
+      // Auto-select the uploaded template and reset filters so it's visible
+      onSelectedTemplatesChange((prev) => [...prev, result]);
+      setSelectedCategory("all");
+      setSelectedInsurance("all");
     } catch (e) {
       console.error("Upload failed:", e);
     } finally {
       setUploading(false);
     }
-  }, []);
+  }, [onSelectedTemplatesChange]);
 
   const handleRename = useCallback(async (templateId: string, newName: string) => {
     try {
@@ -550,7 +554,7 @@ export function StepSelectReports({
         ref={fileRef}
         type="file"
         className="hidden"
-        accept=".docx,.pdf"
+        accept=".docx,.dotx,.pdf"
         onChange={(e) => {
           handleUpload(e.target.files);
           e.target.value = "";

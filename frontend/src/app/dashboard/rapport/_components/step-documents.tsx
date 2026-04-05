@@ -310,7 +310,7 @@ export function StepDocuments({ docs, onDocsChange, notes, onNotesChange, dateFr
         type="file"
         multiple
         className="hidden"
-        accept=".pdf,.docx,.doc,.xml,.jpg,.jpeg,.png,.tiff,.heic"
+        accept=".pdf,.docx,.dotx,.doc,.xml,.jpg,.jpeg,.png,.tiff,.heic"
         onChange={(e) => {
           if (e.target.files) addFiles(e.target.files);
           e.target.value = "";

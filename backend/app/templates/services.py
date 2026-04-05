@@ -109,7 +109,7 @@ def _detect_format(file_bytes: bytes) -> tuple[str, str, bool]:
     if not is_pdf and file_bytes[:2] != b"PK":
         raise HTTPException(
             status_code=400,
-            detail="Format non supporté. Veuillez importer un fichier .docx ou .pdf.",
+            detail="Format non supporté. Veuillez importer un fichier .docx, .dotx ou .pdf.",
         )
     template_format = "pdf" if is_pdf else "docx"
     ext = "pdf" if is_pdf else "docx"

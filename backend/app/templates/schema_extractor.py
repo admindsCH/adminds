@@ -683,12 +683,72 @@ def _get_parent_paragraph(element: etree._Element) -> etree._Element | None:
     return None
 
 
+def _get_table_context_for_ff(element: etree._Element) -> str:
+    """Build rich context for a form field inside a table.
+
+    Walks up the XML tree from the form field to find:
+    - The table cell (w:tc) it lives in → determines column index
+    - The table row (w:tr) → extracts row label from the first cell
+    - The table (w:tbl) → extracts column header from the first row
+    - The preceding body text → section/question above the table
+
+    Returns context like:
+      "[Table] Annexe psychiatrique | Row: A.1. Difficultés relationnelles | Col: oui"
+    """
+    # Walk up to find tc → tr → tbl
+    tc, tr, tbl = None, None, None
+    ancestor = element.getparent()
+    while ancestor is not None:
+        if ancestor.tag == f"{W}tc" and tc is None:
+            tc = ancestor
+        elif ancestor.tag == f"{W}tr" and tr is None:
+            tr = ancestor
+        elif ancestor.tag == f"{W}tbl":
+            tbl = ancestor
+            break
+        ancestor = ancestor.getparent()
+
+    if tbl is None:
+        return ""
+
+    table_context = _get_preceding_text(tbl)
+
+    # Find column index of this cell within its row
+    col_idx = 0
+    if tr is not None and tc is not None:
+        for i, cell in enumerate(tr.findall(f"{W}tc")):
+            if cell is tc:
+                col_idx = i
+                break
+
+    # Row label: text from the first cell of this row
+    row_label = ""
+    if tr is not None:
+        row_cells = tr.findall(f"{W}tc")
+        if row_cells:
+            row_label = _get_cell_text(row_cells[0]).strip()
+
+    # Column header: text from the same column in the first row
+    col_header = ""
+    rows = tbl.findall(f"{W}tr")
+    if rows:
+        header_cells = rows[0].findall(f"{W}tc")
+        if col_idx < len(header_cells):
+            col_header = _get_cell_text(header_cells[col_idx]).strip()
+
+    parts = [f"[Table] {table_context}"]
+    if row_label:
+        parts.append(f"Row: {row_label}")
+    if col_header:
+        parts.append(f"Col: {col_header}")
+    return " | ".join(parts)
+
+
 def _get_element_context(element: etree._Element) -> str:
     """Get context around a form field element — no truncation.
 
-    If the form field lives inside a table cell, walks up to the table
-    and captures the preceding body-level text (question text above the
-    table), giving the LLM the full question to label correctly.
+    If the form field lives inside a table cell, extracts the row label
+    and column header to give the LLM precise context for labeling.
     """
     p = _get_parent_paragraph(element)
     if p is None:
@@ -698,8 +758,8 @@ def _get_element_context(element: etree._Element) -> str:
     ancestor = p.getparent()
     while ancestor is not None:
         if ancestor.tag == f"{W}tbl":
-            # Form field is inside a table — get the text before this table
-            return _get_preceding_text(ancestor)
+            # Form field is inside a table — get row + column context
+            return _get_table_context_for_ff(element)
         ancestor = ancestor.getparent()
 
     # Not in a table — walk siblings of the parent
