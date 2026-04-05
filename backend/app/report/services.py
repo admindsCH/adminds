@@ -182,6 +182,14 @@ async def generate_report(
     # 3. Build prompt schema (strip positions)
     prompt_schema = schema.to_prompt_schema()
 
+    if len(prompt_schema) == 0:
+        raise HTTPException(
+            status_code=400,
+            detail="Ce template n'a aucun champ extractible. "
+            "Le PDF n'a peut-être pas de formulaire interactif (AcroForm). "
+            "Essayez d'importer la version .docx du formulaire.",
+        )
+
     # 4. Group fields by section and generate in parallel
     section_groups: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for entry in prompt_schema:
@@ -243,23 +251,6 @@ async def generate_report(
         field_values.update(section_vals)
 
     logger.info(f"LLM returned {len(field_values)} field values")
-
-    # Post-generation: enforce mutual exclusion on oui/non checkbox pairs
-    oui_keys = [k for k in field_values if k.endswith("_oui")]
-    fixed_pairs = 0
-    for oui_key in oui_keys:
-        non_key = oui_key[:-4] + "_non"
-        if non_key not in field_values:
-            continue
-        oui_val = bool(field_values[oui_key])
-        non_val = bool(field_values[non_key])
-        if oui_val and non_val:
-            field_values[non_key] = False
-            fixed_pairs += 1
-        elif not oui_val and not non_val:
-            pass  # LLM chose neither — leave as-is
-    if fixed_pairs:
-        logger.info(f"Fixed {fixed_pairs} contradictory oui/non checkbox pair(s)")
 
     # Debug: save per-section results and merged field values
     for (section_name, _), section_vals in zip(section_groups.items(), section_results):

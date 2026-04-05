@@ -340,6 +340,14 @@ export const api = {
     return apiPostFormData<{ text: string }>("/api/transcribe", formData);
   },
 
+  /** Submit feedback after report generation. */
+  submitFeedback: (rating: number, comment: string, templateName: string): Promise<{ ok: boolean }> =>
+    apiPost<{ ok: boolean }>("/api/admin/analytics/feedback", {
+      rating,
+      comment,
+      template_name: templateName,
+    }),
+
   /** Regenerate a single field with optional doctor instructions. */
   regenerateField: (dossierId: string, templateId: string, fieldId: string, instruction?: string, doctorName?: string, doctorProfile?: DoctorProfile): Promise<RegenerateFieldResponse> =>
     apiPost<RegenerateFieldResponse>("/api/regenerate-field", {

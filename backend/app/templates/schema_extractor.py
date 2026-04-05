@@ -86,6 +86,9 @@ def _extract_pdf_fields(pdf_bytes: bytes) -> list[RawSlot]:
     - detected_field_type from widget type
     - context from surrounding text on the page
     - options for combo/listbox/radio widgets
+
+    Checkbox pairs at the same Y coordinate are merged into a single
+    select_one field with both field names stored in position.
     """
     doc = fitz.open(stream=pdf_bytes, filetype="pdf")
     slots: list[RawSlot] = []
@@ -93,24 +96,66 @@ def _extract_pdf_fields(pdf_bytes: bytes) -> list[RawSlot]:
     for page_num in range(len(doc)):
         page = doc[page_num]
         page_headings = _extract_section_headings(page)
-        # Cache text blocks once per page (avoid re-extracting per widget)
         page_blocks = page.get_text("blocks")
 
+        # Collect all widgets on this page first (for checkbox pair detection)
+        page_widgets: list[tuple[fitz.Widget, str]] = []
         for widget in page.widgets():
             field_name = widget.field_name
             if not field_name or field_name in seen_names:
                 continue
             seen_names.add(field_name)
+            page_widgets.append((widget, field_name))
+
+        # Detect checkbox pairs: EXACTLY two checkboxes at the same Y (±3px)
+        paired: set[str] = set()
+        checkbox_widgets = [
+            (w, n) for w, n in page_widgets if w.field_type == 2
+        ]
+        # Group checkboxes by Y coordinate (±3px tolerance)
+        y_groups: dict[float, list[tuple[fitz.Widget, str]]] = {}
+        for w, n in checkbox_widgets:
+            matched = False
+            for gy in y_groups:
+                if abs(gy - w.rect.y0) <= 3:
+                    y_groups[gy].append((w, n))
+                    matched = True
+                    break
+            if not matched:
+                y_groups[w.rect.y0] = [(w, n)]
+
+        for members in y_groups.values():
+            if len(members) != 2:
+                continue  # Only merge binary pairs, skip groups of 3+
+            (w_a, name_a), (w_b, name_b) = members
+            paired.add(name_a)
+            paired.add(name_b)
+            context = _get_widget_context(w_a, page_blocks, page_headings)
+            slots.append(
+                RawSlot(
+                    slot_type="pdf_field",
+                    position={
+                        "field_name": name_a,
+                        "pair_field_name": name_b,
+                    },
+                    detected_field_type="select_one",
+                    context=context,
+                    options=[name_a, name_b],
+                )
+            )
+
+        # Emit remaining (non-paired) widgets as individual slots
+        for widget, field_name in page_widgets:
+            if field_name in paired:
+                continue
 
             field_type = _map_widget_type(widget)
 
-            # choice_values can be list[str] or list[tuple[str, str]]
             options: list[str] = []
             if widget.choice_values:
                 for v in widget.choice_values:
                     options.append(v[0] if isinstance(v, tuple) else str(v))
 
-            # Build context: section heading + nearby text
             context = _get_widget_context(widget, page_blocks, page_headings)
 
             slots.append(

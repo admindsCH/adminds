@@ -195,7 +195,7 @@ def _build_response(
         estimated_minutes=_safe_int(metadata.get("estimated_minutes", "5"), 5),
         page_count=_safe_int(metadata.get("page_count", "1"), 1),
         is_official=str(metadata.get("is_official", "false")).lower() == "true",
-        has_schema=True,
+        has_schema=_safe_int(metadata.get("_field_count", "1"), 1) > 0,
         filename=stored_filename,
         size=size,
     )
@@ -214,9 +214,15 @@ async def upload_and_extract(
     template_id, stored_filename = _store_blob(user_id, metadata, file_bytes, ext)
 
     try:
-        await label_and_store_schema(
+        schema = await label_and_store_schema(
             user_id, template_id, metadata["name"], template_format, raw_slots
         )
+        metadata["_field_count"] = str(len(schema.fields))
+        if len(schema.fields) == 0:
+            logger.warning(
+                f"Template '{template_id}': 0 fields extracted. "
+                "PDF may not have AcroForm widgets."
+            )
     except Exception as e:
         logger.error(f"Schema extraction failed for '{template_id}': {e}")
         try:

@@ -5,6 +5,7 @@ Access is restricted to a hardcoded list of admin Clerk user IDs.
 
 from __future__ import annotations
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.analytics.db import (
@@ -74,3 +75,56 @@ async def track_event(
     metadata = event.get("metadata", {})
     track(user.user_id, event_type, metadata)
     return {"ok": True}
+
+
+@router.post("/feedback")
+async def submit_feedback(
+    body: dict,
+    user: CurrentUser = Depends(get_current_user),
+) -> dict:
+    """Submit feedback after report generation.
+
+    Body: { "rating": 1-5, "comment": "...", "template_name": "..." }
+    """
+    rating = body.get("rating")
+    if not isinstance(rating, int) or not 1 <= rating <= 5:
+        raise HTTPException(status_code=400, detail="rating must be 1-5")
+
+    comment = body.get("comment", "")
+    template_name = body.get("template_name", "")
+
+    track(user.user_id, "report_feedback", {
+        "rating": rating,
+        "comment": comment,
+        "template_name": template_name,
+    })
+
+    # Send Slack notification
+    await _notify_feedback_slack(user.user_id, rating, comment, template_name)
+
+    return {"ok": True}
+
+
+async def _notify_feedback_slack(
+    user_id: str, rating: int, comment: str, template_name: str
+) -> None:
+    """Send feedback notification to Slack."""
+    from app.config import settings
+
+    if not settings.slack_webhook_url:
+        return
+
+    stars = "\u2b50" * rating
+    msg = f"{stars} Feedback *{rating}/5* de `{user_id}`"
+    if template_name:
+        msg += f" sur *{template_name}*"
+    if comment:
+        msg += f"\n> {comment}"
+
+    try:
+        async with httpx.AsyncClient() as client:
+            await client.post(
+                settings.slack_webhook_url, json={"text": msg}, timeout=10
+            )
+    except Exception:
+        pass  # Never block on Slack failures

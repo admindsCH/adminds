@@ -541,6 +541,106 @@ function DocumentDetailView({
   );
 }
 
+// ── Feedback Widget ─────────────────────────────────────
+
+function StarIcon({ className, filled }: { className?: string; filled: boolean }) {
+  return (
+    <svg className={className} viewBox="0 0 20 20" fill={filled ? "currentColor" : "none"} stroke="currentColor" strokeWidth={1.5}>
+      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+    </svg>
+  );
+}
+
+function FeedbackWidget({
+  templateNames,
+  onSubmitted,
+}: {
+  templateNames: string[];
+  onSubmitted: () => void;
+}) {
+  const [rating, setRating] = useState<number>(0);
+  const [hoveredRating, setHoveredRating] = useState<number>(0);
+  const [comment, setComment] = useState("");
+  const [sending, setSending] = useState(false);
+
+  const handleSubmit = async () => {
+    if (rating === 0) return;
+    setSending(true);
+    try {
+      await api.submitFeedback(rating, comment, templateNames.join(", "));
+      onSubmitted();
+    } catch {
+      // Silently fail — feedback is non-critical
+      onSubmitted();
+    }
+  };
+
+  const displayRating = hoveredRating || rating;
+
+  return (
+    <div className="mx-auto mt-8 max-w-sm rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
+      <p className="text-center text-sm font-semibold text-zinc-900">
+        Comment évaluez-vous le résultat ?
+      </p>
+
+      {/* Star rating */}
+      <div className="mt-4 flex justify-center gap-1">
+        {[1, 2, 3, 4, 5].map((star) => (
+          <button
+            key={star}
+            type="button"
+            onClick={() => setRating(star)}
+            onMouseEnter={() => setHoveredRating(star)}
+            onMouseLeave={() => setHoveredRating(0)}
+            className="rounded-md p-1 transition-transform hover:scale-110"
+          >
+            <StarIcon
+              className={clsx(
+                "h-8 w-8 transition-colors",
+                star <= displayRating ? "text-amber-400" : "text-zinc-300"
+              )}
+              filled={star <= displayRating}
+            />
+          </button>
+        ))}
+      </div>
+
+      {/* Label under stars */}
+      {displayRating > 0 && (
+        <p className="mt-1 text-center text-xs text-zinc-500">
+          {["", "Insuffisant", "Passable", "Correct", "Bon", "Excellent"][displayRating]}
+        </p>
+      )}
+
+      {/* Comment textarea — appears after rating */}
+      {rating > 0 && (
+        <div className="mt-4">
+          <textarea
+            value={comment}
+            onChange={(e) => setComment(e.target.value)}
+            placeholder="Un commentaire ? (optionnel)"
+            rows={3}
+            className="w-full rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+          />
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={sending}
+            className={clsx(
+              "mt-3 w-full rounded-lg px-4 py-2 text-sm font-medium transition-colors",
+              sending
+                ? "bg-zinc-200 text-zinc-400 cursor-wait"
+                : "bg-indigo-600 text-white hover:bg-indigo-700"
+            )}
+          >
+            {sending ? "Envoi..." : "Envoyer"}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Generation Progress View ────────────────────────────
 
 function RetryIcon({ className }: { className?: string }) {
@@ -564,6 +664,8 @@ function GenerationView({
   onViewItem: (templateId: string) => void;
   onRetryItem: (templateId: string) => void;
 }) {
+  const [feedbackSent, setFeedbackSent] = useState(false);
+
   return (
     <div className="mx-auto max-w-2xl py-8">
       <div className="text-center">
@@ -654,6 +756,19 @@ function GenerationView({
           );
         })}
       </ul>
+
+      {/* Feedback widget — shown when all reports are generated */}
+      {allDone && !feedbackSent && (
+        <FeedbackWidget
+          templateNames={cart.filter((c) => c.status === "done").map((c) => c.template.name)}
+          onSubmitted={() => setFeedbackSent(true)}
+        />
+      )}
+      {feedbackSent && (
+        <p className="mt-6 text-center text-sm text-emerald-600">
+          Merci pour votre retour !
+        </p>
+      )}
     </div>
   );
 }
@@ -702,31 +817,40 @@ export function StepGenerate({ selectedTemplates, canton, dossierId }: StepGener
 
     updateItem(item.template.id, { status: "generating", progress: 50 });
 
-    if (canGenerate && dossierId) {
-      try {
-        const templateCanton = item.template.canton === "all" ? canton : item.template.canton;
-        const result = await api.generateReport(dossierId, templateCanton, item.template.id, doctorName, doctorProfile);
+    if (!canGenerate) {
+      updateItem(item.template.id, {
+        status: "error",
+        error: "Ce template n'a aucun champ extractible. Essayez d'importer la version .docx du formulaire.",
+      });
+      return;
+    }
 
-        updateItem(item.template.id, { status: "formatting", progress: 80 });
-        const { isPdf, mimeType } = getFileMeta(item.template.filename);
-        const docxBlob = base64ToBlob(result.docx_base64, mimeType);
+    if (!dossierId) {
+      updateItem(item.template.id, {
+        status: "error",
+        error: "Dossier patient manquant. Retournez à l'étape précédente.",
+      });
+      return;
+    }
 
-        updateItem(item.template.id, {
-          status: "done",
-          progress: 100,
-          result: { docxBlob, fieldSchema: result.field_schema, fieldValues: result.field_values, isPdf },
-        });
-      } catch (e) {
-        updateItem(item.template.id, {
-          status: "error",
-          error: e instanceof Error ? e.message : "Erreur",
-        });
-      }
-    } else {
-      await new Promise((r) => setTimeout(r, 2000 + Math.random() * 500));
+    try {
+      const templateCanton = item.template.canton === "all" ? canton : item.template.canton;
+      const result = await api.generateReport(dossierId, templateCanton, item.template.id, doctorName, doctorProfile);
+
       updateItem(item.template.id, { status: "formatting", progress: 80 });
-      await new Promise((r) => setTimeout(r, 1200 + Math.random() * 500));
-      updateItem(item.template.id, { status: "done", progress: 100 });
+      const { isPdf, mimeType } = getFileMeta(item.template.filename);
+      const docxBlob = base64ToBlob(result.docx_base64, mimeType);
+
+      updateItem(item.template.id, {
+        status: "done",
+        progress: 100,
+        result: { docxBlob, fieldSchema: result.field_schema, fieldValues: result.field_values, isPdf },
+      });
+    } catch (e) {
+      updateItem(item.template.id, {
+        status: "error",
+        error: e instanceof Error ? e.message : "Erreur lors de la génération",
+      });
     }
   }, [dossierId, canton, doctorName, doctorProfile, updateItem]);
 
