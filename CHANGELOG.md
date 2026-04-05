@@ -1,3 +1,10 @@
+## [0.8.1](https://github.com/admindsCH/adminds/compare/v0.8.0...v0.8.1) (2026-04-05)
+
+
+### Bug Fixes
+
+* ADM-12 - tableau and test structure for extraction mechanism ([0e16935](https://github.com/admindsCH/adminds/commit/0e16935665a041beb1ddaf03784d0ec1f8e9f4bf))
+
 # [0.8.0](https://github.com/admindsCH/adminds/compare/v0.7.5...v0.8.0) (2026-04-05)
 
 
