@@ -1,3 +1,10 @@
+## [0.7.5](https://github.com/admindsCH/adminds/compare/v0.7.4...v0.7.5) (2026-04-05)
+
+
+### Bug Fixes
+
+* dotx support, refresh page when importing template, annexes fields ([b65c837](https://github.com/admindsCH/adminds/commit/b65c837ad03887eace66b16224dd36d7c762ee9c))
+
 ## [0.7.4](https://github.com/admindsCH/adminds/compare/v0.7.3...v0.7.4) (2026-04-03)
 
 
